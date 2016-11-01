@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<job  name="TpcRS" maxFilesPerProcess="1"  filesPerHour="1" simulateSubmission="false" fileListSyntax="paths">
+
+	<command> 
+		cd ${SUBMITTINGDIRECTORY}  
+
+		starver .DEV2
+                source $STAR/setupDEV2.csh
+#               setenv NODEBUG yes
+#               setenv STARFPE NO
+                setup gcc492
+                setup 32b
+                starver DEV2/TFG16a
+
+#		setenv NODEBUG yes
+#		starver .DEV2 
+
+		set file = `basename $INPUTFILE0`;
+		if (! -r $file) ln -s $INPUTFILE0 $file;
+		echo "$INPUTFILE0 => ${file}"
+		set bFile    = `basename $file .fzd`
+		set logFile  = ${bFile}B.log
+		set outRootFile = ${bFile}.MuDst.root
+		set f=`find . -maxdepth 1 -type f -name "*${bFile}*.root"`
+
+		if ("$f" == "") then
+#		root4star -q -b 'TpcRS.C(1,2,"y2014,,bigbig,TpcRS,Sti,TpxClu2D","'${file}'","Bichsel","0")' &gt;&amp; ${logFile} # 2D
+#		root4star -q -b 'TpcRS.C(1,100,"y2014,,bigbig,TpcRS,Sti","'${file}'","Bichsel","0")' &gt;&amp; ${logFile} # 1D
+#		root4star -q -b 'bfc.C(100, "MakeEvent,NoSsdIt,NoSvtIt,Idst,VFMinuit,analysis,dEdxY2,bigbig,CMuDst,McAna,mcTpcAna,IdTruth,useInTracker,tree,tpcDB,TpcHitMover,TpxClu,fzin,y2012,tpcrs,sti,tpxclu2d", "'$file'", "'$file'", "'$outRootFile'")' &gt;&amp; ${logFile}
+		root4star -q -b 'bfc.C(100, "MakeEvent,NoSsdIt,NoSvtIt,Idst,VFMinuit,analysis,dEdxY2,bigbig,CMuDst,McAna,mcTpcAna,IdTruth,useInTracker,tree,tpcDB,TpcHitMover,TpxClu2D,fzin,y2012,tpcrs,sti,tpxclu2d", "'$file'", "'$file'", "'$outRootFile'")' &gt;&amp; ${logFile}
+#		rm -f ${bFile}_Bichsel_1_10.root
+		endif
+	</command>
+
+	<input URL="file:/gpfs01/star/pwg/iraklic/mySimulations/Di-lepton/Di-Electron/kinematics/*.fzd" />
+	<!--input URL="file:/gpfs01/star/pwg/iraklic/ClusterFinder/TPC_reconstruction/*.fzd" /-->
+
+	<stdout URL="file:./$JOBID.log" />
+	<stderr URL="file:./$JOBID.err" />
+</job>               
