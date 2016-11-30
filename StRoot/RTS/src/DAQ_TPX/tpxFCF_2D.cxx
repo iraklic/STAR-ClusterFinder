@@ -15,6 +15,8 @@
 
 #include <DAQ_READER/daq_dta_structs.h>
 
+#include <cstdio> // IRAKLI
+
 #define CHECK_SANITY
 
 //#include <GL3/profiler.hh>
@@ -30,11 +32,14 @@
 #define DTA_S(i,j) (dta_s + (dt_2)*(i) + (j))
 #define DTA_ID(i,j) (dta_id + (dt_2)*(i) + (j))
 
+// =============================================================================================
 static inline u_int get10(u_int *l, u_int p)
 	{
 	u_int ret ;
 
 	l -= 2*(p/4) ;
+
+	printf("I am here\n"); // IRAKLI
 
 	switch(p&3)
 		{
@@ -57,6 +62,7 @@ static inline u_int get10(u_int *l, u_int p)
 	return ret;
 	}
 
+// =============================================================================================
 u_int *tpxFCF_2D_scan_to_next(tpxFCF_2D *fcf, u_int *end, u_int *start, tpx_altro_struct *a)
 	{
 	u_int *h = end ;
@@ -197,6 +203,7 @@ u_int *tpxFCF_2D_scan_to_next(tpxFCF_2D *fcf, u_int *end, u_int *start, tpx_altr
 	return h ;
 	}
 
+// =============================================================================================
 int tpxFCF_2D::do_print(int row)
 	{
 	printf("++++ Doing row %2d\n",row);
@@ -242,22 +249,22 @@ int tpxFCF_2D::do_print(int row)
 	}
 
 	
+// =============================================================================================
 int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 	{
+	printf("I am here : 1\n"); // IRAKLI
+
 	u_int *locbuff = buff ;
 	u_int *startbuff = buff ;
-	
 
 	int gprof0 = PROFILER(0) ;
 
-	for(row=1;row<=45;row++) {	// need row count here!!!
+	for(row = 1; row <= 45; row++) { // need row count here!!!
 
 	int do_debug = 0 ;
 
-
 //	check to see if we have this row...
-	if(gain_storage[sector-1][row] ==0) continue ;
-
+	if(gain_storage[sector-1][row] == 0) continue ;
 
 //	LOG(TERR,"doing sector %d, rdo %d, row %d",sector,rdo,row) ;
 
@@ -338,7 +345,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 #ifdef CHECK_SANITY
 		int rr, aa, cc ;
 		if(rdo) {
-
 			tpx_to_altro(row,p,rr,aa,cc) ;
 			if(rr != rdo) {
 				LOG(ERR,"Huh? rdo %d: rp %d:%d",rdo,row,p) ;
@@ -346,14 +352,12 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			}
 		}
 
-
 		if(get_static(row,p)->f & FCF_KILLED_PAD) {
 			LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p,*b1) ;
 
 			continue ;
 		}
 #endif
-
 
 		for(;;) {
 
@@ -400,8 +404,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				ix2 = b2++ ;
 				t2_hi = *b2++ ;
 				t2_lo = t2_hi - b2_cou + 1 ;
-
-
 
 				b2 += b2_cou ;
 				
@@ -467,7 +469,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 					printf("   merge: %d: %d %d\n",p,*ix1,*ix2) ;
 					#endif
 				}
-
 			}
 
 			sweep_unmerged: ;
@@ -482,10 +483,7 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				printf("   was unmerged: %d: %d\n",p,*ix1) ;
 				#endif
 			}
-			
-
 		}		
-
 	}
 
 	// do very last pad in padrow by hand...
@@ -534,13 +532,11 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 #endif
 			}
 		}
-
 	}
 
 	LOG(DBG,"Doing 1") ;
 	// end of row; asign blobs
 	int gprof2 = PROFILER(gprof1) ;
-
 
 	// first; wrap up the late merges
 #define MAX_CHAIN_COU	32
@@ -607,7 +603,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				chain_cou++ ;
 			}
 		}
-
 	}
 
 	start_chain: ;
@@ -690,7 +685,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			}
 
 			chain_done:;
-			
 
 			if((ix < 0) || (ix > blob_ix)){
 				LOG(WARN,"Too many ix: r:p %d:%d: ix %d/%d",
@@ -702,8 +696,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				#endif
 				continue ;
 			}
-
-
 
 			blob_t *bl = blobs + ix ;
 
@@ -729,23 +721,18 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 
 			bl->cou++ ;
 
-
 			blob_seq_t *seq = bl->seq + seq_cou ;
 
 			seq->s = bs ;
 			seq->pad = pad ;
 
-
 //			PROFILER(prof4) ;
 		}
-		
 	}
-
 
 	// do stage 2: extract stuff out...
 	LOG(DBG,"Doing 3") ;
 	int gprof4 = PROFILER(gprof3) ;
-
 
 	// ************************ loop over all the blobs
 	for(int ix=0;ix<blob_ix;ix++) {
@@ -790,13 +777,11 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			if(tb_lo < t1) t1 = tb_lo ;
 
 		}
-
 		// p1,p2 & t1,t2 are the real extents of the blob
 
 		short dp = p2 - p1 + 1 ;
 		short dt = t2 - t1 + 1 ;
 		short dt_2 = dt + 2 ;	// for indexing
-
 
 #ifdef CHECK_SANITY
 		if((t1>500)||(t2>500)||(dp<=0)||(dt<=0)) {
@@ -813,9 +798,7 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			flags |= FCF_ONEPAD ;
 		}
 
-
 		int prof2 = PROFILER(prof1) ;	// 0.1 us
-
 
 		// ************** copy over to local storage in a NxM matrix form
 		
@@ -837,8 +820,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 #endif
 
 		int prof3 = PROFILER(prof2) ;	// now 0.15us (was 0.47 us)
-
-		
 
 		for(int j=0;j<blobs[ix].cou;j++) {
 			short *s = blobs[ix].seq[j].s ;
@@ -880,11 +861,9 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 
 		int prof4 = PROFILER(prof3) ;	// 0.17 us
 
-
 		// ******************* now do the filtering (average) to get rid of the noise for peak-finding...
 		for(int i=1;i<=(dp);i++) {
 		for(int j=1;j<=(dt);j++) {
-
 			short sum = 0 ;
 
 			int iy = j - 1 ;
@@ -911,7 +890,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 		}
 
 		int prof5 = PROFILER(prof4) ;	// 0.29 0.26 (0.36 us)
-
 
 		// ********************* find the count of peaks...
 		int peaks_cou = 0 ;
@@ -962,7 +940,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			j += 2 ;
 
 			skip_calc:;
-			
 		}
 		}
 
@@ -984,9 +961,6 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			#endif
 		}
 
-
-
-
 #ifdef DO_DBG
 
 if(peaks_cou <= 1) {
@@ -997,7 +971,6 @@ if(peaks_cou <= 1) {
 	for(int i=1;i<=(dp);i++) {
 	for(int j=1;j<=(dt);j++) {
 		short adc ;
-
 
 		adc = *DTA(i,j) ;
 
@@ -1012,18 +985,13 @@ if(peaks_cou <= 1) {
 			for(int i=1;i<=(dp);i++) {
 				short adc ;
 
-
 				adc = *DTA(i,j) ;
 				sum += adc ;
-			
 			}
-
 			printf("FFF %d %d %d %d %d %d %d\n",event,sector,row,p1,ccc,t1+j-1,sum) ;
 		}
 	}
-
 }
-
 
 if(1) {
 //if((peaks_cou<=1) || (t2==512)) {		
@@ -1066,16 +1034,11 @@ if(1) {
 			}
 			printf("\n") ;
 		}
-
-
 		printf("\n") ;
-
 }
 #endif
 
-
 		int prof7 = 0 ;
-
 
 		blob_c.p1 = p1 ;
 		blob_c.p2 = p2 ;
@@ -1104,9 +1067,7 @@ if(1) {
 			
 			peak_counter++ ;
 
-			for(int i=1;i<=(dp);i++) {	// data starts on 2
-
-
+			for(int i=1;i<=(dp);i++) { // data starts on 2
 				int tb = t1  ;
 
 				int i_charge = 0 ;
@@ -1114,9 +1075,7 @@ if(1) {
 
 				short *adc_p = DTA(i,1) ;
 
-				for(int j=1;j<=(dt);j++) {	// data starts on 2
-					
-
+				for(int j=1;j<=(dt);j++) { // data starts on 2
 					register int adc = *adc_p++ ;
 
 					if(adc) pix_cou++ ;
@@ -1139,9 +1098,7 @@ if(1) {
 					i_t_ave += (tb++) * adc ;
 				}
 
-
 				if(i_charge == 0) continue ;
-
 
 				int pad = p1 + i - 1 ;
 
@@ -1159,16 +1116,12 @@ if(1) {
 				f_charge += corr_charge ;
 				f_t_ave += i_t_ave * gain + t0 * corr_charge ;
 				f_p_ave += pad * corr_charge ;
-
 			}
-
 
 			peaks[0].f_t_ave = f_t_ave ;
 			peaks[0].f_p_ave = f_p_ave ;
 			peaks[0].f_charge = f_charge ;
 			peaks[0].pix_cou = pix_cou ;
-
-
 
 			peaks_cou = 1 ;	// force it!
 
@@ -1193,14 +1146,11 @@ if(1) {
 			}
 	
 			prof7 = PROFILER(prof6) ;	// 3.3 us
-
 		}
 
 		PROFILER(prof7) ;	// 0.12 us
 		PROFILER(prof1) ;	// 2.0 us total per blob
 	}
-
-
 
 	u_int cl_cou  ;
 	if(modes) {
@@ -1209,7 +1159,6 @@ if(1) {
 	else {
 		cl_cou = (outbuff - locbuff)/2 ;
 	}
-
 
 	#ifdef DO_DBG
 	//printf("Row %2d: %d hits\n",row,cl_cou) ;
@@ -1224,9 +1173,7 @@ if(1) {
 		locbuff -= 2 ;
 	}
 
-
 	PROFILER(gprof4) ;
-
 	PROFILER(gprof1) ;	// start of row
 
 	if(do_debug) do_print(row) ;
@@ -1238,7 +1185,7 @@ if(1) {
 	return (u_int *)locbuff - (u_int *)startbuff ;	// return number of intes stored
 }
 
-
+// =============================================================================================
 /*
 	Used only in re-doing clusters later in offline or for simulated
 	data.
@@ -1248,7 +1195,6 @@ int tpxFCF_2D::do_pad_2d(tpx_altro_struct *a, daq_sim_adc_tb *sim_adc)
 	int row = a->row ;
 	int pad = a->pad ;
 
-
 	if(is_pad_valid(row,pad)==0) {
 		//LOG(WARN,"Sec %d, rp %d:%d -- not valid",sector,row,pad) ;
 		return 0 ;
@@ -1256,14 +1202,12 @@ int tpxFCF_2D::do_pad_2d(tpx_altro_struct *a, daq_sim_adc_tb *sim_adc)
 
 	if(a->count == 0) return 0 ;
 
-
 	// check size
 	int shorts_so_far = data_raw_p - data_raw ;
 	if(shorts_so_far >((data_raw_shorts*9)/10)) {
 		LOG(ERR,"Too much data %d/%d",shorts_so_far,data_raw_shorts) ;
 		return 0 ;
 	}
-
 
 	// NEED to sort in falling timebin!
 
@@ -1318,12 +1262,9 @@ int tpxFCF_2D::do_pad_2d(tpx_altro_struct *a, daq_sim_adc_tb *sim_adc)
 		}
 		
 		tb_last = tb ;
-
 	}
 
-
 	*tb_cou_p = tb_cou ;
-
 
 	*data_raw_p++ = 0 ;
 	*data_raw_p = 0 ;
@@ -1331,10 +1272,9 @@ int tpxFCF_2D::do_pad_2d(tpx_altro_struct *a, daq_sim_adc_tb *sim_adc)
 	int s_cou = data_raw_p - start ;
 
 	return s_cou ;
-
 }
 
-
+// =============================================================================================
 tpxFCF_2D::tpxFCF_2D()
 {
 #ifndef TPX_ONLINE
@@ -1352,6 +1292,7 @@ tpxFCF_2D::tpxFCF_2D()
 	data_raw = (short *) valloc(2*data_raw_shorts) ;	// pad_num X 512tb X 2bytes (short)
 }
 
+// =============================================================================================
 int tpxFCF_2D::do_dump(int ix, u_int *obuff)
 {
 	int ret = 0 ;	// how many ints did we use...
@@ -1502,8 +1443,6 @@ int tpxFCF_2D::do_peaks(int peaks_cou)
 	if(peaks_cou==0) peaks_cou = 1 ;	// sanitize...
 	if(peaks_cou > 1) flags = FCF_MERGED ;
 
-	
-
 	for(int p=0;p<peaks_cou;p++) {
 		peaks[p].f_charge = 0.0 ;
 		peaks[p].f_t_ave = 0.0 ;
@@ -1557,7 +1496,6 @@ int tpxFCF_2D::do_peaks(int peaks_cou)
 				}
 			}
 
-
 			if(min_p<0) {
 				LOG(ERR,"What: %d: rp %d:%d",min_p,row,pad) ;
 				continue ;
@@ -1597,7 +1535,7 @@ int tpxFCF_2D::do_peaks(int peaks_cou)
 	return 0 ;
 }
 
-
+// =============================================================================================
 void tpxFCF_2D::do_track_id(int peaks_cou)
 {
 	short dt, dt_2 ;
@@ -1606,7 +1544,6 @@ void tpxFCF_2D::do_track_id(int peaks_cou)
 	dp = blob_c.dp ;
 	dt = blob_c.dt ;
 	dt_2 = blob_c.dt_2 ;	// MUST be called dt_2 due to the DTA() define!!!
-
 
 	for(int c=0;c<peaks_cou;c++) {
 		// now to the track_id and Q
@@ -1618,7 +1555,6 @@ void tpxFCF_2D::do_track_id(int peaks_cou)
 		} t_id[MAX_TRACK_IDS] ;
 
 		memset(t_id,0,sizeof(t_id)) ;
-
 
 		u_short track_id = 123;
 		u_int blob_adc = 0 ;
@@ -1683,7 +1619,6 @@ void tpxFCF_2D::do_track_id(int peaks_cou)
 		}
 		}
 
-
 		peaks[c].track_id = track_id ;
 
 		if(blob_adc) {
@@ -1695,7 +1630,6 @@ void tpxFCF_2D::do_track_id(int peaks_cou)
 		if(peaks[c].quality == 0) {
 			LOG(ERR,"What??? %d %d %d",max_cou,track_adc,blob_adc) ;
 		}
-
 	}
-
 }
+// =============================================================================================
