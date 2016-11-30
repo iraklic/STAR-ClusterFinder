@@ -329,824 +329,771 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 		} // END OF LOOP OVER tpc_rowlen
 #endif
 
-	for(int p = 1; p < tpx_rowlen[row]; p++) { // the < is on purpose!
-		short *b1 = p_row_pad[row][p];
+		for(int p = 1; p < tpx_rowlen[row]; p++) { // the < is on purpose!
+			short *b1 = p_row_pad[row][p];
 
-		if(b1 == 0) continue; // pad missing?
-
+			if(b1 == 0) continue; // pad missing?
 #ifdef CHECK_SANITY
-		int rr, aa, cc;
-		if(rdo) {
-			tpx_to_altro(row,p,rr,aa,cc);
-			if(rr != rdo) {
-				LOG(ERR,"Huh? rdo %d: rp %d:%d",rdo,row,p);
+			int rr, aa, cc;
+			if(rdo) {
+				tpx_to_altro(row,p,rr,aa,cc);
+				if(rr != rdo) {
+					LOG(ERR,"Huh? rdo %d: rp %d:%d",rdo,row,p);
+					continue;
+				}
+			}
+			if(get_static(row,p)->f & FCF_KILLED_PAD) {
+				LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p,*b1);
 				continue;
 			}
-		}
-
-		if(get_static(row,p)->f & FCF_KILLED_PAD) {
-			LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p,*b1) ;
-			continue ;
-		}
 #endif
-		for(;;) {
-			b1_cou = *b1++; // count of adcs
-
-			if(b1_cou == 0) break;
-
-			ix1 = b1++;
-			t1_hi = *b1++; // tb_hi;
-			t1_lo = t1_hi - b1_cou + 1;
-
-			b1 += b1_cou; // advance to next...
-#ifdef DO_SIMULATION
-			b1 += b1_cou; // to skip the track_ids as well
-#endif
-
-			short *b2 = p_row_pad[row][p+1];
-
-			if(b2 == 0) {	// no second pad?
-				goto sweep_unmerged;
-			}
-#ifdef CHECK_SANITY
-			if(rdo) {
-				tpx_to_altro(row,p+1,rr,aa,cc);
-				if(rr != rdo) {
-					LOG(ERR,"Huh?");
-					goto sweep_unmerged;	// different RDO
-				}
-			}
-
-			if(get_static(row,p+1)->f & FCF_KILLED_PAD) {
-				LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p+1,*b2);
-				goto sweep_unmerged;
-			}
-#endif
-			for(;;) {
-				b2_cou = *b2++;
-
-				if(b2_cou == 0) break;
-
-				ix2 = b2++;
-				t2_hi = *b2++;
-				t2_lo = t2_hi - b2_cou + 1;
-
-				b2 += b2_cou;
-#ifdef DO_SIMULATION
-				b2 += b2_cou;	// to skip the track ids
-#endif
-				int merge;
-
-				if(t1_lo > t2_hi) merge = 0;
-				else if(t2_lo > t1_hi) merge = 0;
-				else merge = 1;
-
-				#ifdef DO_DBG1
-				printf("MMMM: %d: [%d,%d]%d vs. %d [%d,%d]%d %s\n",
-				       p,t1_lo,t1_hi,*ix1,
-				       p+1,t2_lo,t2_hi,*ix2,
-				       merge?"-- merged":"");
-				#endif
-
-				if(merge) {
-					if(*ix1 >= 0) {
-						if(*ix2 >= 0) {
-							if(*ix1 != *ix2) {
-//							printf("Late merge: r:p %d:%d, merges %d, ix1 %d, ix2 %d\n",row,p,late_merge_cou,*ix1,*ix2);
-							if(late_merge_cou >= MAX_LATE_MERGE) {
-								LOG(WARN,"Too many late merges %d/%d: rp %d:%d",late_merge_cou,MAX_LATE_MERGE,row,p);
-								do_debug = 1;
-
-#ifdef DO_DBG3
-								printf("***** WARN Too many late merges\n") ;
-#endif
-							}
-							else {
-								late_merge[late_merge_cou].lo = *ix1;
-								late_merge[late_merge_cou].hi = *ix2;
-								late_merge_cou++;
-							}
-
-#if DO_DBG3
-							printf("   late merge pad %d: %d %d\n",p,*ix1,*ix2);
-#endif
-							}
-						}
-						else {
-							*ix2 = *ix1;
-						}
-					}
-					else {
-						if(*ix2 >= 0) {
-							*ix1 = *ix2;
-						}
-						else {
-							*ix1 = blob_ix;
-							*ix2 = blob_ix;
-							blobs[blob_ix].cou = 0;
-							blob_ix++;
-						}
-					}
-#ifdef DO_DBG1
-					printf("   merge: %d: %d %d\n",p,*ix1,*ix2) ;
-#endif
-				}
-			}
-
-			sweep_unmerged: ;
-
-//			sweep unmerged sequences
-			if(*ix1 < 0) { // unassigned
-				*ix1 = blob_ix;
-				blobs[blob_ix].cou = 0;
-				blob_ix++ ;
-
-#ifdef DO_DBG1
-				printf("   was unmerged: %d: %d\n",p,*ix1);
-#endif
-			}
-		}
-	}
-
-	// do very last pad in padrow by hand...
-	// PROBLEM for row 8!
-	int p = tpx_rowlen[row];
-	short *b1 = p_row_pad[row][p];
-
-	if(b1) {
-		int rr = rdo;
-#ifdef CHECK_SANITY
-		if(rdo) {
-			int aa, cc;
-			tpx_to_altro(row,p,rr,aa,cc);
-		}
-
-		if(rr != rdo) {
-			LOG(ERR,"Huh?");
-		};
-#endif
-		if(rr == rdo) {
-			short b1_cou;
-			short *ix1;
-
 			for(;;) {
 				b1_cou = *b1++; // count of adcs
 
 				if(b1_cou == 0) break;
 
 				ix1 = b1++;
+				t1_hi = *b1++; // tb_hi;
+				t1_lo = t1_hi - b1_cou + 1;
 
-				if(*ix1 < 0) {
-					*ix1 = blob_ix;
-					blobs[blob_ix].cou = 0;
-					blob_ix++;
-
-#ifdef DO_DBG1
-					printf("    last pad: %d: %d\n",p,*ix1);
+				b1 += b1_cou; // advance to next...
+#ifdef DO_SIMULATION
+				b1 += b1_cou; // to skip the track_ids as well
 #endif
+				short *b2 = p_row_pad[row][p+1];
+
+				if(b2 == 0) {	// no second pad?
+					goto sweep_unmerged;
 				}
-				b1 += b1_cou + 1;
-#ifdef DO_SIMULATION
-				b1 += b1_cou;
-#endif
-			}
-		}
-	}
-
-	LOG(DBG,"Doing 1");
-//	end of row; asign blobs
-	int gprof2 = PROFILER(gprof1);
-
-//	first; wrap up the late merges
-#define MAX_CHAIN_COU	32
-#define MAX_CHAIN_IX	32
-	struct chain_t {
-		short ix[MAX_CHAIN_IX];
-		short cou;
-		short leader;
-	} chain[MAX_CHAIN_COU];
-
-	int chain_cou = 0 ;
-
-	for(int i=0;i<late_merge_cou;i++) {
-		int lo = late_merge[i].lo;
-		int hi = late_merge[i].hi;
-
-		int got_lo = 0;
-		int got_hi = 0;
-
-		for(int j = 0; j < chain_cou; j++) {
-			for(int k=0;k<chain[j].cou;k++) {
-				if(chain[j].ix[k] == lo) got_lo = j + 1;
-				if(chain[j].ix[k] == hi) got_hi = j + 1;
-			}
-			if(got_hi || got_lo) break;
-		}
-
-		if(got_hi && got_lo) continue;
-
-		if(got_hi) {
-			chain[got_hi-1].ix[chain[got_hi-1].cou] = lo;
-			chain[got_hi-1].cou++;
-
-			if(chain[got_hi-1].cou >= MAX_CHAIN_IX) {
-				do_debug = 1;
-				LOG(WARN,"Too many hi");
-				goto start_chain;
-			}
-		}
-		else if(got_lo) {
-			chain[got_lo-1].ix[chain[got_lo-1].cou] = hi;
-			chain[got_lo-1].cou++;
-
-			if(chain[got_lo-1].cou >= MAX_CHAIN_IX) {
-				do_debug = 1;
-				LOG(WARN,"Too many lo");
-				goto start_chain;
-			}
-		}
-		else {
-			if(chain_cou >= MAX_CHAIN_COU) {
-				LOG(WARN,"Too many chains");
-				goto start_chain;
-			}
-			else {
-				chain[chain_cou].ix[0] = lo;
-				chain[chain_cou].ix[1] = hi;
-				chain[chain_cou].cou = 2;
-				chain_cou++;
-			}
-		}
-	}
-
-	start_chain: ;
-
-//	find the chain leader: probably unnecessary, can use the 1st one...
-	for(int i = 0; i < chain_cou; i++) {
-		short min = 0x7FFF;
-		for(int j = 0; j < chain[i].cou; j++) {
-			if(chain[i].ix[j] < min) {	
-				min = chain[i].ix[j];
-			}
-			chain[i].leader = min;
-		}
-	}
-
-#ifdef DO_DBG3
-	for(int i=0;i<chain_cou;i++) {
-		printf("chain %d: ",i);
-		for(int j=0;j<chain[i].cou;j++) {
-			printf("%2d ",chain[i].ix[j]);
-		}
-		printf("\n");
-	}
-#endif
-	if(blob_ix >= MAX_BLOB_COUNT) {
-		LOG(WARN,"Too many blobs %d/%d",blob_ix,MAX_BLOB_COUNT);
-		do_debug = 1;
-		blob_ix = MAX_BLOB_COUNT - 1; // cut it off by hand!
-	}
-
-	LOG(DBG,"Doing 2");
-	int gprof3 = PROFILER(gprof2);
-
-	for(int pad = 1; pad <= tpx_rowlen[row]; pad++) {
-		register short *b = p_row_pad[row][pad];
-
-		if(b == 0) continue ; // pad missing?
-
 #ifdef CHECK_SANITY
-		if(rdo) {
-			int rr, aa, cc;
-			tpx_to_altro(row,pad,rr,aa,cc);
-			if(rr != rdo) {
-				LOG(ERR,"Huh?");
-				continue ;
-			}
-		}
-#endif
-		short flags = get_static(row,pad)->f & 0x0FFF ;
-		flags &= ~FCF_ONEPAD ;	// need to fix the default ala tpxFCF...
-		if(rdo == 0) flags &= ~FCF_BROKEN_EDGE ;
-
-		register short cou;
-
-		while((cou = *b)) {
-//			int prof4 = PROFILER(0);
-
-			short *bs = b;
-			short ix = bs[1]; // get the index out
-
-			b += cou + 3; // advance pointer to next sequence
-#ifdef DO_SIMULATION
-			b += cou ;
-#endif
-//			 check for late merge via chains
-			for(int l = 0; l < chain_cou; l++) {
-				for(int k = 0; k < chain[l].cou; k++) {
-					if(ix == chain[l].ix[k]) {
-#ifdef DO_DBG3
-						printf(" pad %3d, tb_hi %3d: chain merge of %d into %d\n",pad,bs[2],ix,chain[l].leader);
-#endif
-						ix = chain[l].leader;
-						goto chain_done;
+				if(rdo) {
+					tpx_to_altro(row,p+1,rr,aa,cc);
+					if(rr != rdo) {
+						LOG(ERR,"Huh?");
+						goto sweep_unmerged;	// different RDO
 					}
 				}
+				if(get_static(row,p+1)->f & FCF_KILLED_PAD) {
+					LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p+1,*b2);
+					goto sweep_unmerged;
+				}
+#endif
+				for(;;) {
+					b2_cou = *b2++;
+
+					if(b2_cou == 0) break;
+
+					ix2 = b2++;
+					t2_hi = *b2++;
+					t2_lo = t2_hi - b2_cou + 1;
+
+					b2 += b2_cou;
+#ifdef DO_SIMULATION
+					b2 += b2_cou;	// to skip the track ids
+#endif
+					int merge;
+
+					if(t1_lo > t2_hi) merge = 0;
+					else if(t2_lo > t1_hi) merge = 0;
+					else merge = 1;
+
+#ifdef DO_DBG1
+					printf("MMMM: %d: [%d,%d]%d vs. %d [%d,%d]%d %s\n", p, t1_lo, t1_hi, *ix1, p+1,t2_lo,t2_hi,*ix2, merge?"-- merged":"");
+#endif
+					if(merge) {
+						if(*ix1 >= 0) {
+							if(*ix2 >= 0) {
+								if(*ix1 != *ix2) {
+//								printf("Late merge: r:p %d:%d, merges %d, ix1 %d, ix2 %d\n",row,p,late_merge_cou,*ix1,*ix2);
+								if(late_merge_cou >= MAX_LATE_MERGE) {
+									LOG(WARN,"Too many late merges %d/%d: rp %d:%d",late_merge_cou,MAX_LATE_MERGE,row,p);
+									do_debug = 1;
+#ifdef DO_DBG3
+									printf("***** WARN Too many late merges\n") ;
+#endif
+								}
+								else {
+									late_merge[late_merge_cou].lo = *ix1;
+									late_merge[late_merge_cou].hi = *ix2;
+									late_merge_cou++;
+								}
+#if DO_DBG3
+								printf("   late merge pad %d: %d %d\n",p,*ix1,*ix2);
+#endif
+								}
+							}
+							else {
+								*ix2 = *ix1;
+							}
+						}
+						else {
+							if(*ix2 >= 0) {
+								*ix1 = *ix2;
+							}
+							else {
+								*ix1 = blob_ix;
+								*ix2 = blob_ix;
+								blobs[blob_ix].cou = 0;
+								blob_ix++;
+							}
+						}
+#ifdef DO_DBG1
+						printf("   merge: %d: %d %d\n",p,*ix1,*ix2);
+#endif
+					}
+				} // END OF INNER for ;;
+
+				sweep_unmerged: ;
+
+//				sweep unmerged sequences
+				if(*ix1 < 0) { // unassigned
+					*ix1 = blob_ix;
+					blobs[blob_ix].cou = 0;
+					blob_ix++ ;
+#ifdef DO_DBG1
+					printf("   was unmerged: %d: %d\n",p,*ix1);
+#endif
+				}
+			} // END OF OUTER for ;;
+		} // END OF LOOP OVET tpx_rowlen
+
+//		do very last pad in padrow by hand...
+//		PROBLEM for row 8!
+		int p = tpx_rowlen[row];
+		short *b1 = p_row_pad[row][p];
+
+		if(b1) {
+			int rr = rdo;
+#ifdef CHECK_SANITY
+			if(rdo) {
+				int aa, cc;
+				tpx_to_altro(row,p,rr,aa,cc);
 			}
 
-			chain_done:;
-
-			if((ix < 0) || (ix > blob_ix)){
-				LOG(WARN,"Too many ix: r:p %d:%d: ix %d/%d",
-				    row,pad,ix,blob_ix) ;
-#ifdef DO_DBG
-				printf("***** WARN Too many ix: r:p %d:%d: ix %d/%d\n",
-				    row,pad,ix,blob_ix);
+			if(rr != rdo) {
+				LOG(ERR,"Huh?");
+			};
 #endif
-				continue ;
+			if(rr == rdo) {
+				short b1_cou;
+				short *ix1;
+
+				for(;;) {
+					b1_cou = *b1++; // count of adcs
+
+					if(b1_cou == 0) break;
+
+					ix1 = b1++;
+
+					if(*ix1 < 0) {
+						*ix1 = blob_ix;
+						blobs[blob_ix].cou = 0;
+						blob_ix++;
+#ifdef DO_DBG1
+						printf("    last pad: %d: %d\n",p,*ix1);
+#endif
+					}
+					b1 += b1_cou + 1;
+#ifdef DO_SIMULATION
+					b1 += b1_cou;
+#endif
+				}
+			}
+		}
+
+		LOG(DBG,"Doing 1");
+//		end of row; asign blobs
+		int gprof2 = PROFILER(gprof1);
+
+//		first; wrap up the late merges
+#define MAX_CHAIN_COU	32
+#define MAX_CHAIN_IX	32
+		struct chain_t {
+			short ix[MAX_CHAIN_IX];
+			short cou;
+			short leader;
+		} chain[MAX_CHAIN_COU];
+
+		int chain_cou = 0 ;
+
+		for(int i = 0; i < late_merge_cou; i++) {
+			int lo = late_merge[i].lo;
+			int hi = late_merge[i].hi;
+
+			int got_lo = 0;
+			int got_hi = 0;
+
+			for(int j = 0; j < chain_cou; j++) {
+				for(int k = 0; k < chain[j].cou; k++) {
+					if(chain[j].ix[k] == lo) got_lo = j + 1;
+					if(chain[j].ix[k] == hi) got_hi = j + 1;
+				}
+				if(got_hi || got_lo) break;
 			}
 
-			blob_t *bl = blobs + ix;
+			if(got_hi && got_lo) continue;
 
-			short seq_cou = bl->cou;
+			if(got_hi) {
+				chain[got_hi-1].ix[chain[got_hi-1].cou] = lo;
+				chain[got_hi-1].cou++;
 
-			if(seq_cou >= MAX_SEQ_PER_BLOB) {	
-				LOG(WARN,"Too many seqs: r:p %d:%d: ix %d: seq_cou %d/%d",row,pad,ix,seq_cou,MAX_SEQ_PER_BLOB) ;
+				if(chain[got_hi-1].cou >= MAX_CHAIN_IX) {
+					do_debug = 1;
+					LOG(WARN,"Too many hi");
+					goto start_chain;
+				}
+			}
+			else if(got_lo) {
+				chain[got_lo-1].ix[chain[got_lo-1].cou] = hi;
+				chain[got_lo-1].cou++;
 
-#ifdef DO_DBG
-				printf("***** WARN Too many seqs: r:p %d:%d: ix %d: %d/%d\n",
-				    row,pad,ix,seq_cou,MAX_SEQ_PER_BLOB) ;
+				if(chain[got_lo-1].cou >= MAX_CHAIN_IX) {
+					do_debug = 1;
+					LOG(WARN,"Too many lo");
+					goto start_chain;
+				}
+			}
+			else {
+				if(chain_cou >= MAX_CHAIN_COU) {
+					LOG(WARN,"Too many chains");
+					goto start_chain;
+				}
+				else {
+					chain[chain_cou].ix[0] = lo;
+					chain[chain_cou].ix[1] = hi;
+					chain[chain_cou].cou = 2;
+					chain_cou++;
+				}
+			}
+		} // END OF late_merge_cou
+
+		start_chain: ;
+
+//		find the chain leader: probably unnecessary, can use the 1st one...
+		for(int i = 0; i < chain_cou; i++) {
+			short min = 0x7FFF;
+			for(int j = 0; j < chain[i].cou; j++) {
+				if(chain[i].ix[j] < min) {	
+					min = chain[i].ix[j];
+				}
+				chain[i].leader = min;
+			}
+		}
+#ifdef DO_DBG3
+		for(int i=0;i<chain_cou;i++) {
+			printf("chain %d: ",i);
+			for(int j=0;j<chain[i].cou;j++) {
+				printf("%2d ",chain[i].ix[j]);
+			}
+			printf("\n");
+		}
 #endif
+		if(blob_ix >= MAX_BLOB_COUNT) {
+			LOG(WARN,"Too many blobs %d/%d",blob_ix,MAX_BLOB_COUNT);
+			do_debug = 1;
+			blob_ix = MAX_BLOB_COUNT - 1; // cut it off by hand!
+		}
+
+		LOG(DBG,"Doing 2");
+		int gprof3 = PROFILER(gprof2);
+
+		for(int pad = 1; pad <= tpx_rowlen[row]; pad++) {
+			register short *b = p_row_pad[row][pad];
+
+			if(b == 0) continue ; // pad missing?
+#ifdef CHECK_SANITY
+			if(rdo) {
+				int rr, aa, cc;
+				tpx_to_altro(row,pad,rr,aa,cc);
+				if(rr != rdo) {
+					LOG(ERR,"Huh?");
+					continue ;
+				}
+			}
+#endif
+			short flags = get_static(row,pad)->f & 0x0FFF ;
+			flags &= ~FCF_ONEPAD ;	// need to fix the default ala tpxFCF...
+			if(rdo == 0) flags &= ~FCF_BROKEN_EDGE ;
+
+			register short cou;
+
+			while((cou = *b)) {
+//				int prof4 = PROFILER(0);
+
+				short *bs = b;
+				short ix = bs[1]; // get the index out
+
+				b += cou + 3; // advance pointer to next sequence
+#ifdef DO_SIMULATION
+				b += cou ;
+#endif
+//				check for late merge via chains
+				for(int l = 0; l < chain_cou; l++) {
+					for(int k = 0; k < chain[l].cou; k++) {
+						if(ix == chain[l].ix[k]) {
+#ifdef DO_DBG3
+							printf(" pad %3d, tb_hi %3d: chain merge of %d into %d\n",pad,bs[2],ix,chain[l].leader);
+#endif
+							ix = chain[l].leader;
+							goto chain_done;
+						}
+					}
+				}
+
+				chain_done:;
+
+				if((ix < 0) || (ix > blob_ix)){
+					LOG(WARN,"Too many ix: r:p %d:%d: ix %d/%d", row, pad, ix, blob_ix) ;
+#ifdef DO_DBG
+					printf("***** WARN Too many ix: r:p %d:%d: ix %d/%d\n", row, pad, ix, blob_ix);
+#endif
+					continue;
+				}
+
+				blob_t *bl = blobs + ix;
+
+				short seq_cou = bl->cou;
+
+				if(seq_cou >= MAX_SEQ_PER_BLOB) {	
+					LOG(WARN,"Too many seqs: r:p %d:%d: ix %d: seq_cou %d/%d",row,pad,ix,seq_cou,MAX_SEQ_PER_BLOB) ;
+#ifdef DO_DBG
+					printf("***** WARN Too many seqs: r:p %d:%d: ix %d: %d/%d\n", row, pad, ix, seq_cou, MAX_SEQ_PER_BLOB) ;
+#endif
+					continue;
+				}
+
+				if(seq_cou == 0) {
+					bl->flags = flags;
+				}
+				else {
+					bl->flags |= flags;
+				}
+
+				bl->cou++;
+
+				blob_seq_t *seq = bl->seq + seq_cou;
+
+				seq->s = bs;
+				seq->pad = pad;
+
+//				PROFILER(prof4) ;
+			} // END OF while (cou = *b)
+		} // END OF LOOP OVER tpx_rowlen
+
+//		do stage 2: extract stuff out...
+		LOG(DBG,"Doing 3") ;
+		int gprof4 = PROFILER(gprof3) ;
+
+//		************************ loop over all the blobs
+		for(int ix = 0; ix < blob_ix; ix++) {
+#ifdef DO_DBG3
+			printf("===> BLOB %2d: row %d, %d pads, flags 0x%X\n",ix,row,blobs[ix].cou,blobs[ix].flags) ;
+#endif
+			if(blobs[ix].cou == 0) continue; // can only be from a late merge
+
+			short flags = blobs[ix].flags ;
+
+			short p1 = 1000 ;
+			short t1 = 1000 ;
+			short p2 = 0 ;
+			short t2 = 0 ;
+
+			int prof1 = PROFILER(0) ;
+
+//			get the extents while loooping over sequences/strips
+			for(int j = 0; j < blobs[ix].cou; j++) {
+				short *s = blobs[ix].seq[j].s;
+				short pad = blobs[ix].seq[j].pad;
+
+				if(pad < p1) p1 = pad;
+				if(pad > p2) p2 = pad;
+
+				short tb_cou = *s++;
+
+				s++ ; // skip ix
+			
+				int tb_hi = (int) *s++;
+
+				int tb_lo = tb_hi - tb_cou + 1;
+#ifdef CHECK_SANITY
+//				 cases exist when there's just 1 pixel on timebin 0 or last
+				if(tb_hi>=500 || (tb_lo > tb_hi)) {
+					LOG(ERR,"tb_cou  %d, tb_hi %d, tb_lo %d",tb_cou,tb_hi,tb_lo) ;
+				}
+#endif
+				if(tb_hi > t2) t2 = tb_hi ;
+				if(tb_lo < t1) t1 = tb_lo ;
+
+			} // END OF LOOP OVER blobs
+//			p1,p2 & t1,t2 are the real extents of the blob
+
+			short dp = p2 - p1 + 1 ;
+			short dt = t2 - t1 + 1 ;
+			short dt_2 = dt + 2 ;	// for indexing
+#ifdef CHECK_SANITY
+			if((t1 > 500) || (t2 > 500) || (dp <= 0) || (dt <= 0)) {
+				LOG(ERR,"What dp %d, dt %d:  %d:%d p, %d:%d t???",dp,dt,p1,p2,t1,t2) ;
+			}
+#endif
+//			cut off blobs where dt is very small
+			if((dt <= 1) && do_cuts && !(flags & FCF_BROKEN_EDGE)) continue;
+
+//			ONEPAD cut but only if not before the trigger (aka tb=15, aka wire hits))
+			if(dp <= 1) {
+				if((t1>15) && do_cuts && !(flags & FCF_BROKEN_EDGE)) continue;
+				flags |= FCF_ONEPAD;
+			}
+
+			int prof2 = PROFILER(prof1) ; // 0.1 us
+
+//			************** copy over to local storage in a NxM matrix form
+		
+//			check total bytes
+			u_int tot_size = (dp+2)*dt_2*sizeof(short)*2 ;
+			if(tot_size > sizeof(dta)) {
+				LOG(WARN,"Cluster too big: sec %d:%d, row %d, dp %d, dt %d: %d/%d-- skipping",sector,rdo,row,dp,dt,tot_size,sizeof(dta));
 				continue;
 			}
 
-			if(seq_cou == 0) {
-				bl->flags = flags;
-			}
-			else {
-				bl->flags |= flags;
-			}
+//			clear local storage
+			memset(dta, 0, (dp+2)*dt_2*sizeof(short)*2) ;	// clear both storages in one shot
 
-			bl->cou++;
-
-			blob_seq_t *seq = bl->seq + seq_cou;
-
-			seq->s = bs;
-			seq->pad = pad;
-
-//			PROFILER(prof4) ;
-		}
-	}
-
-	// do stage 2: extract stuff out...
-	LOG(DBG,"Doing 3") ;
-	int gprof4 = PROFILER(gprof3) ;
-
-	// ************************ loop over all the blobs
-	for(int ix = 0; ix < blob_ix; ix++) {
-		#ifdef DO_DBG3
-		printf("===> BLOB %2d: row %d, %d pads, flags 0x%X\n",ix,row,blobs[ix].cou,blobs[ix].flags) ;
-		#endif
-
-		if(blobs[ix].cou == 0) continue; // can only be from a late merge
-
-		short flags = blobs[ix].flags ;
-
-		short p1 = 1000 ;
-		short t1 = 1000 ;
-		short p2 = 0 ;
-		short t2 = 0 ;
-
-		int prof1 = PROFILER(0) ;
-
-		// get the extents while loooping over sequences/strips
-		for(int j=0;j<blobs[ix].cou;j++) {
-			short *s = blobs[ix].seq[j].s ;
-			short pad = blobs[ix].seq[j].pad ;
-
-			if(pad < p1) p1 = pad ;
-			if(pad > p2) p2 = pad ;
-
-			short tb_cou = *s++ ;
-
-			s++ ;	// skip ix
-			
-			int tb_hi = (int) *s++ ;
-
-			int tb_lo = tb_hi - tb_cou + 1 ;
-
-#ifdef CHECK_SANITY
-			// cases exist when there's just 1 pixel on timebin 0 or last
-			if(tb_hi>=500 || (tb_lo > tb_hi)) {
-				LOG(ERR,"tb_cou  %d, tb_hi %d, tb_lo %d",tb_cou,tb_hi,tb_lo) ;
-			}
-#endif
-			if(tb_hi > t2) t2 = tb_hi ;
-			if(tb_lo < t1) t1 = tb_lo ;
-
-		}
-		// p1,p2 & t1,t2 are the real extents of the blob
-
-		short dp = p2 - p1 + 1 ;
-		short dt = t2 - t1 + 1 ;
-		short dt_2 = dt + 2 ;	// for indexing
-
-#ifdef CHECK_SANITY
-		if((t1>500)||(t2>500)||(dp<=0)||(dt<=0)) {
-			LOG(ERR,"What dp %d, dt %d:  %d:%d p, %d:%d t???",dp,dt,p1,p2,t1,t2) ;
-		}
-#endif
-		// cut off blobs where dt is very small
-		if((dt <= 1) && do_cuts && !(flags & FCF_BROKEN_EDGE)) continue ;
-
-		// ONEPAD cut but only if not before the trigger (aka tb=15, aka wire hits))
-		if(dp <= 1) {
-			if((t1>15) && do_cuts && !(flags & FCF_BROKEN_EDGE)) continue ;
-
-			flags |= FCF_ONEPAD ;
-		}
-
-		int prof2 = PROFILER(prof1) ;	// 0.1 us
-
-		// ************** copy over to local storage in a NxM matrix form
-		
-		// check total bytes
-		u_int tot_size = (dp+2)*dt_2*sizeof(short)*2 ;
-		if(tot_size > sizeof(dta)) {
-			LOG(WARN,"Cluster too big: sec %d:%d, row %d, dp %d, dt %d: %d/%d-- skipping",sector,rdo,row,dp,dt,tot_size,sizeof(dta)) ;
-			continue ;
-		}
-
-		// clear local storage
-		memset(dta, 0, (dp+2)*dt_2*sizeof(short)*2) ;	// clear both storages in one shot
-
-		dta_s = dta + (dp+2)*dt_2 ;	// for the filtered data
-
+			dta_s = dta + (dp+2)*dt_2 ;	// for the filtered data
 #ifdef DO_SIMULATION
-		memset(dta_t,0,(dp+2)*dt_2*sizeof(short)) ;
-		memset(dta_id,0,(dp+2)*dt_2*sizeof(short)) ;
+			memset(dta_t,0,(dp+2)*dt_2*sizeof(short)) ;
+			memset(dta_id,0,(dp+2)*dt_2*sizeof(short)) ;
 #endif
+			int prof3 = PROFILER(prof2) ;	// now 0.15us (was 0.47 us)
 
-		int prof3 = PROFILER(prof2) ;	// now 0.15us (was 0.47 us)
+			for(int j = 0; j < blobs[ix].cou; j++) {
+				short *s = blobs[ix].seq[j].s ;
+				short p0 = blobs[ix].seq[j].pad - p1 + 1;	// start from 1
 
-		for(int j=0;j<blobs[ix].cou;j++) {
-			short *s = blobs[ix].seq[j].s ;
-			short p0 = blobs[ix].seq[j].pad - p1 + 1;	// start from 1
+				short tb_cou = *s++ ;
 
-
-			short tb_cou = *s++ ;
-
-			s++ ;	// skip ix
+				s++; // skip ix
 			
-			int tb_hi = (int) *s++ ;
+				int tb_hi = (int) *s++;
 
-			int tb_lo = tb_hi - tb_cou + 1 ;
+				int tb_lo = tb_hi - tb_cou + 1;
 
+				int tb = tb_hi - t1 + 1; // start from 1
 
-			int tb = tb_hi - t1 + 1 ;			// start from 1
+				short *udd = DTA(p0,0);
 
-			short *udd = DTA(p0,0) ;
-
-// this is the critical timing part and should not be present in real-time code!
+//				this is the critical timing part and should not be present in real-time code!
 #ifdef DO_SIMULATION	
-			u_short *tdd = DTA_T(p0,0) ;
+				u_short *tdd = DTA_T(p0,0);
 #endif
-			for(;tb_hi>=tb_lo;tb_hi--) {
-				short adc = *s++ ;
+				for(; tb_hi >= tb_lo; tb_hi--) {
+					short adc = *s++;
 #ifdef DO_SIMULATION
-				u_short track_id = *s++ ;
+					u_short track_id = *s++;
 
-				*(tdd + tb) = track_id ;
+					*(tdd + tb) = track_id;
 #endif
-
-				*(udd + tb) = adc ;
-				tb-- ;
-
+					*(udd + tb) = adc;
+					tb--;
+				}
 			}
-		}
 
-		// dta starts at [1,1]
+//			dta starts at [1,1]
+			int prof4 = PROFILER(prof3); // 0.17 us
 
-		int prof4 = PROFILER(prof3) ;	// 0.17 us
+//			******************* now do the filtering (average) to get rid of the noise for peak-finding...
+			for(int i = 1; i <= (dp); i++) {
+				for(int j = 1; j <= (dt); j++) {
+					short sum = 0;
 
-		// ******************* now do the filtering (average) to get rid of the noise for peak-finding...
-		for(int i=1;i<=(dp);i++) {
-		for(int j=1;j<=(dt);j++) {
-			short sum = 0 ;
-
-			int iy = j - 1 ;
-
+					int iy = j - 1;
 #if 1
-			for(int ii=-1;ii<=1;ii++) {
-				register short *udd = DTA(i+ii,iy) ;
-
-				for(int jj=0;jj<3;jj++) {
-					sum += *udd++ ;
-				}	
-			}
+					for(int ii =- 1; ii <= 1; ii++) {
+						register short *udd = DTA(i+ii,iy);
+						for(int jj = 0; jj < 3; jj++) {
+							sum += *udd++;
+						}
+					}
 #else
-			register short *udd = DTA(i,iy) ;
+					register short *udd = DTA(i,iy);
 
-			for(int jj=0;jj<3;jj++) {
-				sum += *udd++ ;
-			}	
-
+					for(int jj = 0; jj < 3; jj++) {
+						sum += *udd++;
+					}
 #endif
-
-			*DTA_S(i,j) = sum ;
-		}
-		}
-
-		int prof5 = PROFILER(prof4) ;	// 0.29 0.26 (0.36 us)
-
-		// ********************* find the count of peaks...
-		int peaks_cou = 0 ;
-
-#ifdef DO_DBG
-		int pix_cou = 0 ;
-#endif
-		for(int i=1;i<=(dp);i++) {
-		for(int j=1;j<=(dt);j++) {
-			short adc ;
-			short adc_peak ;
-
-			// ignore the peak location if the original ADC is smaller
-			adc_peak = *DTA(i,j) ;
-
-#ifdef DO_DBG		
-			if(adc_peak) pix_cou++ ;
-#endif
-
-			if(unlikely(adc_peak < 1)) continue ;
-
-			adc = *DTA_S(i,j) ;
-
-			if(unlikely(adc < 1)) continue ;	// this can cause the number of peaks to be 0...
-
-			int iy = j - 1 ;
-
-			for(int ii=-1;ii<=1;ii++) {				
-				short *dd = DTA_S(i+ii,iy) ;
-
-				for(int jj=0;jj<3;jj++) {
-					short s_adc = *dd++ ;
-
-					if(likely(adc < s_adc)) goto skip_calc ;
-					if(unlikely(s_adc < 0)) goto skip_calc ;
-				}	
+					*DTA_S(i,j) = sum;
+				}
 			}
 
-			*DTA_S(i,j) = -100 ;	// mark as used!
+			int prof5 = PROFILER(prof4) ;	// 0.29 0.26 (0.36 us)
+
+//			********************* find the count of peaks...
+			int peaks_cou = 0;
+#ifdef DO_DBG
+			int pix_cou = 0 ;
+#endif
+			for(int i = 1; i <= (dp); i++) {
+				for(int j = 1; j <= (dt); j++) {
+					short adc;
+					short adc_peak;
+
+//				ignore the peak location if the original ADC is smaller
+				adc_peak = *DTA(i,j);
+#ifdef DO_DBG		
+				if(adc_peak) pix_cou++;
+#endif
+				if(unlikely(adc_peak < 1)) continue;
+
+				adc = *DTA_S(i,j);
+
+				if(unlikely(adc < 1)) continue; // this can cause the number of peaks to be 0...
+
+				int iy = j - 1;
+
+				for(int ii =- 1; ii <= 1; ii++) {
+					short *dd = DTA_S(i+ii,iy);
+
+					for(int jj = 0; jj < 3; jj++) {
+						short s_adc = *dd++ ;
+
+						if(likely(adc < s_adc)) goto skip_calc;
+						if(unlikely(s_adc < 0)) goto skip_calc;
+					}
+				}
+
+				*DTA_S(i,j) = -100 ;	// mark as used!
 			
-			peaks[peaks_cou].i = i ;
-			peaks[peaks_cou].j = j ;
-			peaks[peaks_cou].aux_flags = adc_peak ;
-			peaks_cou++ ;
+				peaks[peaks_cou].i = i;
+				peaks[peaks_cou].j = j;
+				peaks[peaks_cou].aux_flags = adc_peak;
+				peaks_cou++;
 
-			if(unlikely(peaks_cou >= MAX_PEAKS_PER_BLOB)) goto peaks_done ;
+				if(unlikely(peaks_cou >= MAX_PEAKS_PER_BLOB)) goto peaks_done;
 
-			j += 2 ;
+				j += 2;
 
-			skip_calc:;
-		}
-		}
+				skip_calc:;
+				}
+			}
 
-		peaks_done:;
+			peaks_done:;
 
-		int prof6 = PROFILER(prof5) ;	// 0.49 0.53 us
+			int prof6 = PROFILER(prof5); // 0.49 0.53 us
 
 		// It is possible that I didn't find any peaks in the blob:
 		//   - peak finding can miss a wide peak
 		//   - the peak(s) were beyond the cuts
 
 		// if I see no peaks, just use the maximum as the starting point
-		if((peaks_cou==0)||(peaks_cou>=MAX_PEAKS_PER_BLOB)) {
-			//if((dp==1) && (dt==1)) ;
-//			LOG(WARN,"Peaks_cou = %d: dp %d, dt %d, flags 0x%X",peaks_cou,dp,dt,flags) ;
+			if((peaks_cou==0)||(peaks_cou>=MAX_PEAKS_PER_BLOB)) {
+//				if((dp==1) && (dt==1)) ;
+//				LOG(WARN,"Peaks_cou = %d: dp %d, dt %d, flags 0x%X",peaks_cou,dp,dt,flags) ;
+#ifdef DO_DBG3
+				printf("Warning: peaks_cou %d vs %d\n",peaks_cou,MAX_PEAKS_PER_BLOB) ;
+#endif
+			}
+#ifdef DO_DBG
 
-			#ifdef DO_DBG3
-			printf("Warning: peaks_cou %d vs %d\n",peaks_cou,MAX_PEAKS_PER_BLOB) ;
-			#endif
+			if(peaks_cou <= 1) {
+				static u_int ccc;
+
+				int max_adc = 0;
+
+				for(int i = 1; i <= (dp); i++) {
+					for(int j = 1; j <= (dt); j++) {
+						short adc;
+						adc = *DTA(i,j);
+
+						if(adc > max_adc) max_adc = adc;
+					}
+				}
+
+				if(max_adc >= 10) {
+					ccc++;
+					for(int j = 1; j <= (dt); j++) {
+						int sum = 0;
+						for(int i = 1; i <= (dp); i++) {
+							short adc;
+
+							adc = *DTA(i,j);
+							sum += adc;
+						}
+						printf("FFF %d %d %d %d %d %d %d\n",event,sector,row,p1,ccc,t1+j-1,sum);
+					}
+				}
+			}
+
+			if(1) {
+//			if((peaks_cou<=1) || (t2==512)) {		
+				printf("+++++ sec %2d, row %2d: p [%d,%d], t [%d,%d]; peaks %d\n",sector,row,p1,p2,t1,t2,peaks_cou) ;
+				printf("peaks: ") ;
+				for(int i = 0; i < peaks_cou; i++) {
+					printf("[%d,%d] ",peaks[i].i,peaks[i].j);
+				}
+				printf("\n");
+
+				printf("      ");
+				for(int i = 0; i <= (dp+1); i++) {
+					printf("p%03d ",p1+i-1);
+				}
+				printf("\n");
+
+				for(int j = (dt + 1); j >= 0; j--) {
+					printf("t%03d ",t1+j-1);
+
+					for(int i = 0; i <= (dp + 1); i++) {
+						printf("%4d ",*DTA(i,j));
+					}
+					printf("\n");
+				}
+
+				printf("##### p [%d,%d], t [%d,%d]; peaks %d\n",p1,p2,t1,t2,peaks_cou);
+
+				printf("      ") ;
+				for(int i = 0; i <= (dp + 1); i++) {
+					printf("p%03d ",p1+i-1);
+				}
+				printf("\n");
+
+				for(int j = (dt + 1); j >= 0; j--) {
+					printf("t%03d ",t1+j-1);
+
+					for(int i = 0; i <= (dp + 1); i++) {
+						printf("%4d ",*DTA_S(i,j));
+					}
+					printf("\n") ;
+				}
+				printf("\n");
+			}
+#endif
+			int prof7 = 0 ;
+
+			blob_c.p1 = p1 ;
+			blob_c.p2 = p2 ;
+			blob_c.t1 = t1 ;
+			blob_c.t2 = t2 ;
+			blob_c.dp = dp ;
+			blob_c.dt = dt ;
+			blob_c.flags = flags ;
+			blob_c.dt_2 = dt_2 ;
+
+			peaks[0].p1 = p1 ;
+			peaks[0].p2 = p2 ;
+			peaks[0].t1 = t1 ;
+			peaks[0].t2 = t2 ;
+			peaks[0].flags = flags ;
+
+			static u_int peak_counter ;
+	
+			if(peaks_cou <= 1 ) {	// single peak, full mean!
+				double f_charge = 0.0 ;
+				double f_t_ave = 0.0 ;
+				double f_p_ave = 0.0 ;
+
+				int pix_cou = 0 ;
+			
+				peak_counter++ ;
+
+				for(int i = 1; i <= (dp); i++) { // data starts on 2
+					int tb = t1;
+
+					int i_charge = 0;
+					int i_t_ave = 0;
+
+					short *adc_p = DTA(i,1);
+
+					for(int j = 1; j <= (dt); j++) { // data starts on 2
+						register int adc = *adc_p++;
+
+						if(adc) pix_cou++;
+#ifdef DO_SIMULATION
+						if(adc) *DTA_ID(i,j) = cluster_id ;
+#endif
+//						if(adc && (row<=13)) printf("BLOB1 %d %d %d %d\n",peak_counter,i,j,adc);
+
+//						if(adc == 0) {
+//							tb++ ;
+//							continue ;
+//						}
+#ifdef DO_DBG2
+						printf("pad:tb %d:%d, i:j %d:%d = %d\n",pad,tb,i,j,adc);
+#endif
+						i_charge += adc;
+						i_t_ave += (tb++) * adc;
+					}
+					if(i_charge == 0) continue ;
+
+					int pad = p1 + i - 1 ;
+
+					double gain = get_static(row,pad)->g ;
+					double t0 = get_static(row,pad)->t0 ;
+
+#ifdef CHECK_SANITY
+					if(gain < 0.8) {
+						LOG(ERR,"BAD Gain 0: sector %d, rdo %d: rp %d %d, flags 0x%X",sector,rdo,row,pad,flags) ;
+					}
+#endif
+					double corr_charge = i_charge * gain ;
+
+					f_charge += corr_charge ;
+					f_t_ave += i_t_ave * gain + t0 * corr_charge ;
+					f_p_ave += pad * corr_charge ;
+				}
+
+				peaks[0].f_t_ave = f_t_ave;
+				peaks[0].f_p_ave = f_p_ave;
+				peaks[0].f_charge = f_charge;
+				peaks[0].pix_cou = pix_cou;
+
+				peaks_cou = 1 ;	// force it!
+#ifdef DO_SIMULATION	
+				peaks[0].cluster_id = cluster_id++ ;
+				do_track_id(peaks_cou) ;
+#endif
+				outbuff += do_dump(0,outbuff) ;
+
+				prof7 = PROFILER(prof6) ;	// 0.19 us
+			}
+			else {
+				do_peaks(peaks_cou) ;
+#ifdef DO_SIMULATION
+				do_track_id(peaks_cou) ;
+#endif
+				for(int p = 0; p < peaks_cou; p++) {
+					outbuff += do_dump(p,outbuff);
+				}
+				prof7 = PROFILER(prof6) ;	// 3.3 us
+			}
+			PROFILER(prof7) ;	// 0.12 us
+			PROFILER(prof1) ;	// 2.0 us total per blob
+		} // END OF blob_ix LOOP
+
+		u_int cl_cou;
+		if(modes) {
+			cl_cou = (outbuff - locbuff)/3 ;
+		}
+		else {
+			cl_cou = (outbuff - locbuff)/2 ;
 		}
 
 #ifdef DO_DBG
-
-if(peaks_cou <= 1) {
-	static u_int ccc ;
-
-	int max_adc = 0 ;
-
-	for(int i=1;i<=(dp);i++) {
-	for(int j=1;j<=(dt);j++) {
-		short adc ;
-
-		adc = *DTA(i,j) ;
-
-		if(adc > max_adc) max_adc = adc ;
-	}
-	}
-
-	if(max_adc >= 10) {
-		ccc++ ;
-		for(int j=1;j<=(dt);j++) {
-			int sum = 0 ;
-			for(int i=1;i<=(dp);i++) {
-				short adc ;
-
-				adc = *DTA(i,j) ;
-				sum += adc ;
-			}
-			printf("FFF %d %d %d %d %d %d %d\n",event,sector,row,p1,ccc,t1+j-1,sum) ;
-		}
-	}
-}
-
-if(1) {
-//if((peaks_cou<=1) || (t2==512)) {		
-		printf("+++++ sec %2d, row %2d: p [%d,%d], t [%d,%d]; peaks %d\n",sector,row,p1,p2,t1,t2,peaks_cou) ;
-		printf("peaks: ") ;
-		for(int i=0;i<peaks_cou;i++) {
-			printf("[%d,%d] ",peaks[i].i,peaks[i].j) ;	
-		}
-		printf("\n") ;
-
-		printf("      ") ;
-		for(int i=0;i<=(dp+1);i++) {
-			printf("p%03d ",p1+i-1) ;
-		}
-		printf("\n") ;
-
-		for(int j=(dt+1);j>=0;j--) {
-			printf("t%03d ",t1+j-1) ;
-
-			for(int i=0;i<=(dp+1);i++) {
-				printf("%4d ",*DTA(i,j)) ;
-			}
-			printf("\n") ;
-		}
-
-
-		printf("##### p [%d,%d], t [%d,%d]; peaks %d\n",p1,p2,t1,t2,peaks_cou) ;
-
-		printf("      ") ;
-		for(int i=0;i<=(dp+1);i++) {
-			printf("p%03d ",p1+i-1) ;
-		}
-		printf("\n") ;
-
-		for(int j=(dt+1);j>=0;j--) {
-			printf("t%03d ",t1+j-1) ;
-
-			for(int i=0;i<=(dp+1);i++) {
-				printf("%4d ",*DTA_S(i,j)) ;
-			}
-			printf("\n") ;
-		}
-		printf("\n") ;
-}
+//		printf("Row %2d: %d hits\n",row,cl_cou) ;
 #endif
 
-		int prof7 = 0 ;
-
-		blob_c.p1 = p1 ;
-		blob_c.p2 = p2 ;
-		blob_c.t1 = t1 ;
-		blob_c.t2 = t2 ;
-		blob_c.dp = dp ;
-		blob_c.dt = dt ;
-		blob_c.flags = flags ;
-		blob_c.dt_2 = dt_2 ;
-
-		peaks[0].p1 = p1 ;
-		peaks[0].p2 = p2 ;
-		peaks[0].t1 = t1 ;
-		peaks[0].t2 = t2 ;
-		peaks[0].flags = flags ;
-
-		static u_int peak_counter ;
-	
-		if(peaks_cou <= 1 ) {	// single peak, full mean!
-
-			double f_charge = 0.0 ;
-			double f_t_ave = 0.0 ;
-			double f_p_ave = 0.0 ;
-
-			int pix_cou = 0 ;
-			
-			peak_counter++ ;
-
-			for(int i=1;i<=(dp);i++) { // data starts on 2
-				int tb = t1  ;
-
-				int i_charge = 0 ;
-				int i_t_ave = 0 ;
-
-				short *adc_p = DTA(i,1) ;
-
-				for(int j=1;j<=(dt);j++) { // data starts on 2
-					register int adc = *adc_p++ ;
-
-					if(adc) pix_cou++ ;
-
-#ifdef DO_SIMULATION	
-					if(adc) *DTA_ID(i,j) = cluster_id ;
-#endif
-					//if(adc && (row<=13)) printf("BLOB1 %d %d %d %d\n",peak_counter,i,j,adc) ;
-
-					//if(adc==0) {
-					//	tb++ ;
-					//	continue ;
-					//}
-
-					#ifdef DO_DBG2
-					printf("pad:tb %d:%d, i:j %d:%d = %d\n",pad,tb,i,j,adc) ;
-					#endif
-
-					i_charge += adc ;
-					i_t_ave += (tb++) * adc ;
-				}
-
-				if(i_charge == 0) continue ;
-
-				int pad = p1 + i - 1 ;
-
-				double gain = get_static(row,pad)->g ;
-				double t0 = get_static(row,pad)->t0 ;
-
-#ifdef CHECK_SANITY
-				if(gain < 0.8) {
-					LOG(ERR,"BAD Gain 0: sector %d, rdo %d: rp %d %d, flags 0x%X",sector,rdo,row,pad,flags) ;
-				}
-#endif
-
-				double corr_charge = i_charge * gain ;
-
-				f_charge += corr_charge ;
-				f_t_ave += i_t_ave * gain + t0 * corr_charge ;
-				f_p_ave += pad * corr_charge ;
-			}
-
-			peaks[0].f_t_ave = f_t_ave ;
-			peaks[0].f_p_ave = f_p_ave ;
-			peaks[0].f_charge = f_charge ;
-			peaks[0].pix_cou = pix_cou ;
-
-			peaks_cou = 1 ;	// force it!
-
-#ifdef DO_SIMULATION	
-			peaks[0].cluster_id = cluster_id++ ;
-			do_track_id(peaks_cou) ;
-#endif
-			outbuff += do_dump(0,outbuff) ;
-
-			prof7 = PROFILER(prof6) ;	// 0.19 us
-
+		if(cl_cou) {
+			*row_cache = (FCF_2D_V_FY13 << 16) | row ;
+			*clust_count_cache = cl_cou ;
+			locbuff = outbuff ;
 		}
-		else {
-
-			do_peaks(peaks_cou) ;
-#ifdef DO_SIMULATION
-			do_track_id(peaks_cou) ;
-#endif
-
-			for(int p=0;p<peaks_cou;p++) {
-				outbuff += do_dump(p,outbuff) ;
-			}
-	
-			prof7 = PROFILER(prof6) ;	// 3.3 us
+		else {	// roll back
+			locbuff -= 2 ;
 		}
 
-		PROFILER(prof7) ;	// 0.12 us
-		PROFILER(prof1) ;	// 2.0 us total per blob
-	}
+		PROFILER(gprof4) ;
+		PROFILER(gprof1) ;	// start of row
 
-	u_int cl_cou  ;
-	if(modes) {
-		cl_cou = (outbuff - locbuff)/3 ;
-	}
-	else {
-		cl_cou = (outbuff - locbuff)/2 ;
-	}
+		if(do_debug) do_print(row) ;
 
-	#ifdef DO_DBG
-	//printf("Row %2d: %d hits\n",row,cl_cou) ;
-	#endif
-
-	if(cl_cou) {
-		*row_cache = (FCF_2D_V_FY13 << 16) | row ;
-		*clust_count_cache = cl_cou ;
-		locbuff = outbuff ;
-	}
-	else {	// roll back
-		locbuff -= 2 ;
-	}
-
-	PROFILER(gprof4) ;
-	PROFILER(gprof1) ;	// start of row
-
-	if(do_debug) do_print(row) ;
-
-	}	// end of all rows
+		}	// end of all rows
 
 	PROFILER(gprof0) ;	// start of RDO
 
