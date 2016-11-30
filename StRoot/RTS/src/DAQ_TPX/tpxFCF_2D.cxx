@@ -247,7 +247,6 @@ int tpxFCF_2D::do_print(int row)
 		}
 	return 0 ;
 	}
-
 	
 // =============================================================================================
 int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
@@ -259,427 +258,398 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 
 	int gprof0 = PROFILER(0) ;
 
+//	--------- LOOP OVER PAD ROWS --------------------------------------
 	for(row = 1; row <= 45; row++) { // need row count here!!!
+		int do_debug = 0 ;
 
-	int do_debug = 0 ;
+//		check to see if we have this row...
+		if(gain_storage[sector-1][row] == 0) continue ;
 
-//	check to see if we have this row...
-	if(gain_storage[sector-1][row] == 0) continue ;
+//		LOG(TERR,"doing sector %d, rdo %d, row %d",sector,rdo,row) ;
 
-//	LOG(TERR,"doing sector %d, rdo %d, row %d",sector,rdo,row) ;
+		int gprof1 = PROFILER(gprof0) ;
 
-	int gprof1 = PROFILER(gprof0) ;
+		struct {
+			u_short hi, lo ;
+			} late_merge[MAX_LATE_MERGE];
 
-
-	struct
-		{
-		u_short hi, lo ;
-		} late_merge[MAX_LATE_MERGE];
-
-	int late_merge_cou = 0;
+		int late_merge_cou = 0;
 	
-	u_int *row_cache = locbuff++ ;	// reserve space
-	u_int *clust_count_cache = locbuff++ ;
-	u_int *outbuff = locbuff ;
-	
-	short blob_ix = 0 ;
+		u_int *row_cache = locbuff++ ;	// reserve space
+		u_int *clust_count_cache = locbuff++ ;
+		u_int *outbuff = locbuff ;
 
-	short b1_cou, t1_lo, t1_hi ;
-	short b2_cou, t2_lo, t2_hi ;
+		short blob_ix = 0 ;
 
-	short *ix1, *ix2 ;
+		short b1_cou, t1_lo, t1_hi ;
+		short b2_cou, t2_lo, t2_hi ;
+
+		short *ix1, *ix2 ;
 
 #ifdef DO_DBG1
-	printf("Doing row %2d\n",row) ;
+		printf("Doing row %2d\n",row);
 
-	for(int p = 1; p <= tpx_rowlen[row]; p++)
-		{
-		short *b1 = p_row_pad[row][p] ;
+		for(int p = 1; p <= tpx_rowlen[row]; p++) {
+			short *b1 = p_row_pad[row][p] ;
 
-		if(b1==0)
-			{
-			printf("row %d, pad %d -- empty\n",row,p) ;
-			continue ;
+			if(b1 == 0) {
+				printf("row %d, pad %d -- empty\n",row,p) ;
+				continue ;
 			}
 
-		int seq_cou = 0 ;
+			int seq_cou = 0 ;
 
-		for(;;)
-			{
-			short tb_cou = *b1++;
+			for(;;) {
+				short tb_cou = *b1++;
 
-			if(tb_cou == 0)
-				{
-				#ifdef DO_DBG1
-				printf("row %d, pad %d -- done\n",row,p) ;
-				#endif
-				break ;
+				if(tb_cou == 0) {
+#ifdef DO_DBG1
+					printf("row %d, pad %d -- done\n",row,p);
+#endif
+					break;
 				}
 			
-			seq_cou++ ;
+				seq_cou++ ;
 
-			#ifdef DO_DBG1
-			short ix = *b1++ ;
-			short tb_hi = *b1++ ;
+#ifdef DO_DBG1
+				short ix = *b1++ ;
+				short tb_hi = *b1++ ;
 
-			printf("row %d, pad %d, tb_cou %d, ix %d, tb_hi %d\n",row,p,tb_cou,ix,tb_hi) ;
+				printf("row %d, pad %d, tb_cou %d, ix %d, tb_hi %d\n",row,p,tb_cou,ix,tb_hi) ;
 
-			for(int i=0;i<tb_cou;i++)
-				{
-				printf("    adc %4d\n",*b1++) ;
+				for(int i = 0; i < tb_cou; i++) {
+					printf("    adc %4d\n",*b1++) ;
 				}
-			#else
+#else
 			b1 += tb_cou + 2 ;
-			#endif
+#endif
 			}
 
-		printf("Row %2d, pad %3d: seq_cou %d\n",row,p,seq_cou) ;
-		}
+		printf("Row %2d, pad %3d: seq_cou %d\n",row,p,seq_cou);
+		} // END OF LOOP OVER tpc_rowlen
 #endif
 
-	for(int p = 1; p < tpx_rowlen[row]; p++) {	// the < is on purpose!
-		short *b1 = p_row_pad[row][p] ;
+	for(int p = 1; p < tpx_rowlen[row]; p++) { // the < is on purpose!
+		short *b1 = p_row_pad[row][p];
 
-		if(b1==0) continue ;	// pad missing?
+		if(b1 == 0) continue; // pad missing?
 
 #ifdef CHECK_SANITY
-		int rr, aa, cc ;
+		int rr, aa, cc;
 		if(rdo) {
-			tpx_to_altro(row,p,rr,aa,cc) ;
+			tpx_to_altro(row,p,rr,aa,cc);
 			if(rr != rdo) {
-				LOG(ERR,"Huh? rdo %d: rp %d:%d",rdo,row,p) ;
-				continue ;
+				LOG(ERR,"Huh? rdo %d: rp %d:%d",rdo,row,p);
+				continue;
 			}
 		}
 
 		if(get_static(row,p)->f & FCF_KILLED_PAD) {
 			LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p,*b1) ;
-
 			continue ;
 		}
 #endif
-
 		for(;;) {
+			b1_cou = *b1++; // count of adcs
 
-			b1_cou = *b1++ ;	// count of adcs
+			if(b1_cou == 0) break;
 
-			if(b1_cou == 0) break ; ;
+			ix1 = b1++;
+			t1_hi = *b1++; // tb_hi;
+			t1_lo = t1_hi - b1_cou + 1;
 
-			ix1 = b1++ ;
-			t1_hi = *b1++ ;	// tb_hi ;
-			t1_lo = t1_hi - b1_cou + 1 ;
-
-
-			b1 += b1_cou  ;	// advance to next...
+			b1 += b1_cou; // advance to next...
 #ifdef DO_SIMULATION
-			b1 += b1_cou ;	// to skip the track_ids as well
+			b1 += b1_cou; // to skip the track_ids as well
 #endif
 
-			short *b2 = p_row_pad[row][p+1] ;
+			short *b2 = p_row_pad[row][p+1];
 
 			if(b2 == 0) {	// no second pad?
-				goto sweep_unmerged ;
+				goto sweep_unmerged;
 			}
-
 #ifdef CHECK_SANITY
 			if(rdo) {
-				tpx_to_altro(row,p+1,rr,aa,cc) ;
+				tpx_to_altro(row,p+1,rr,aa,cc);
 				if(rr != rdo) {
-					LOG(ERR,"Huh?") ;
-					goto sweep_unmerged ;	// different RDO
+					LOG(ERR,"Huh?");
+					goto sweep_unmerged;	// different RDO
 				}
 			}
 
 			if(get_static(row,p+1)->f & FCF_KILLED_PAD) {
-				LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p+1,*b2) ;
-				goto sweep_unmerged ;
+				LOG(ERR,"Killed pad in data: sec %d, rp %d:%d; count %d",sector,row,p+1,*b2);
+				goto sweep_unmerged;
 			}
 #endif
-
 			for(;;) {
-				b2_cou = *b2++ ;
+				b2_cou = *b2++;
 
-				if(b2_cou == 0) break ;
+				if(b2_cou == 0) break;
 
-				ix2 = b2++ ;
-				t2_hi = *b2++ ;
-				t2_lo = t2_hi - b2_cou + 1 ;
+				ix2 = b2++;
+				t2_hi = *b2++;
+				t2_lo = t2_hi - b2_cou + 1;
 
-				b2 += b2_cou ;
-				
+				b2 += b2_cou;
 #ifdef DO_SIMULATION
-				b2 += b2_cou ;	// to skip the track ids
+				b2 += b2_cou;	// to skip the track ids
 #endif
-				int merge ;
+				int merge;
 
-				if(t1_lo > t2_hi) merge = 0 ;
-				else if(t2_lo > t1_hi) merge = 0 ;
-				else merge = 1 ;
+				if(t1_lo > t2_hi) merge = 0;
+				else if(t2_lo > t1_hi) merge = 0;
+				else merge = 1;
 
 				#ifdef DO_DBG1
 				printf("MMMM: %d: [%d,%d]%d vs. %d [%d,%d]%d %s\n",
 				       p,t1_lo,t1_hi,*ix1,
 				       p+1,t2_lo,t2_hi,*ix2,
-				       merge?"-- merged":"") ;
+				       merge?"-- merged":"");
 				#endif
-
 
 				if(merge) {
 					if(*ix1 >= 0) {
 						if(*ix2 >= 0) {
 							if(*ix1 != *ix2) {
-
-							//printf("Late merge: r:p %d:%d, merges %d, ix1 %d, ix2 %d\n",row,p,late_merge_cou,*ix1,*ix2) ;
+//							printf("Late merge: r:p %d:%d, merges %d, ix1 %d, ix2 %d\n",row,p,late_merge_cou,*ix1,*ix2);
 							if(late_merge_cou >= MAX_LATE_MERGE) {
-								LOG(WARN,"Too many late merges %d/%d: rp %d:%d",late_merge_cou,MAX_LATE_MERGE,row,p) ;
-								do_debug = 1 ;
+								LOG(WARN,"Too many late merges %d/%d: rp %d:%d",late_merge_cou,MAX_LATE_MERGE,row,p);
+								do_debug = 1;
 
-								#ifdef DO_DBG3
+#ifdef DO_DBG3
 								printf("***** WARN Too many late merges\n") ;
-								#endif
+#endif
 							}
 							else {
-								late_merge[late_merge_cou].lo = *ix1 ;
-								late_merge[late_merge_cou].hi = *ix2 ;
-								late_merge_cou++ ;
+								late_merge[late_merge_cou].lo = *ix1;
+								late_merge[late_merge_cou].hi = *ix2;
+								late_merge_cou++;
 							}
 
-							#if DO_DBG3
-							printf("   late merge pad %d: %d %d\n",p,*ix1,*ix2) ;
-							#endif
-
+#if DO_DBG3
+							printf("   late merge pad %d: %d %d\n",p,*ix1,*ix2);
+#endif
 							}
 						}
 						else {
-							*ix2 = *ix1 ;
+							*ix2 = *ix1;
 						}
 					}
 					else {
 						if(*ix2 >= 0) {
-							*ix1 = *ix2 ;
+							*ix1 = *ix2;
 						}
 						else {
-							*ix1 = blob_ix ;
-							*ix2 = blob_ix ;
-							blobs[blob_ix].cou = 0 ;
-							blob_ix++ ;
+							*ix1 = blob_ix;
+							*ix2 = blob_ix;
+							blobs[blob_ix].cou = 0;
+							blob_ix++;
 						}
 					}
-					#ifdef DO_DBG1
+#ifdef DO_DBG1
 					printf("   merge: %d: %d %d\n",p,*ix1,*ix2) ;
-					#endif
+#endif
 				}
 			}
 
 			sweep_unmerged: ;
 
-			// sweep unmerged sequences
-			if(*ix1 < 0) {	// unassigned
-				*ix1 = blob_ix ;
-				blobs[blob_ix].cou = 0 ;
+//			sweep unmerged sequences
+			if(*ix1 < 0) { // unassigned
+				*ix1 = blob_ix;
+				blobs[blob_ix].cou = 0;
 				blob_ix++ ;
 
-				#ifdef DO_DBG1
-				printf("   was unmerged: %d: %d\n",p,*ix1) ;
-				#endif
+#ifdef DO_DBG1
+				printf("   was unmerged: %d: %d\n",p,*ix1);
+#endif
 			}
-		}		
+		}
 	}
 
 	// do very last pad in padrow by hand...
 	// PROBLEM for row 8!
-	int p = tpx_rowlen[row] ;
-	short *b1 = p_row_pad[row][p] ;
+	int p = tpx_rowlen[row];
+	short *b1 = p_row_pad[row][p];
 
 	if(b1) {
-		int rr = rdo ;
+		int rr = rdo;
 #ifdef CHECK_SANITY
 		if(rdo) {
-			int aa, cc ;
-			tpx_to_altro(row,p,rr,aa,cc) ;
+			int aa, cc;
+			tpx_to_altro(row,p,rr,aa,cc);
 		}
 
 		if(rr != rdo) {
-			LOG(ERR,"Huh?") ;
-		} ;
+			LOG(ERR,"Huh?");
+		};
 #endif
-		if(rr==rdo) {
-			short b1_cou ;
-			short *ix1 ;
+		if(rr == rdo) {
+			short b1_cou;
+			short *ix1;
 
 			for(;;) {
+				b1_cou = *b1++; // count of adcs
 
-			b1_cou = *b1++ ;	// count of adcs
+				if(b1_cou == 0) break;
 
-			if(b1_cou == 0) break ; ;
+				ix1 = b1++;
 
-			ix1 = b1++ ;
+				if(*ix1 < 0) {
+					*ix1 = blob_ix;
+					blobs[blob_ix].cou = 0;
+					blob_ix++;
 
-			if(*ix1 < 0) {
-				*ix1 = blob_ix ;
-				blobs[blob_ix].cou = 0 ;
-				blob_ix++ ;
-
-				#ifdef DO_DBG1
-				printf("    last pad: %d: %d\n",p,*ix1) ;
-				#endif
-			}
-
-			b1 += b1_cou + 1 ;
-
+#ifdef DO_DBG1
+					printf("    last pad: %d: %d\n",p,*ix1);
+#endif
+				}
+				b1 += b1_cou + 1;
 #ifdef DO_SIMULATION
-			b1 += b1_cou ;
+				b1 += b1_cou;
 #endif
 			}
 		}
 	}
 
-	LOG(DBG,"Doing 1") ;
-	// end of row; asign blobs
-	int gprof2 = PROFILER(gprof1) ;
+	LOG(DBG,"Doing 1");
+//	end of row; asign blobs
+	int gprof2 = PROFILER(gprof1);
 
-	// first; wrap up the late merges
+//	first; wrap up the late merges
 #define MAX_CHAIN_COU	32
 #define MAX_CHAIN_IX	32
 	struct chain_t {
-		short ix[MAX_CHAIN_IX] ;
-		short cou ;
-		short leader ;
-	} chain[MAX_CHAIN_COU] ;
+		short ix[MAX_CHAIN_IX];
+		short cou;
+		short leader;
+	} chain[MAX_CHAIN_COU];
 
 	int chain_cou = 0 ;
 
 	for(int i=0;i<late_merge_cou;i++) {
-		int lo = late_merge[i].lo ;
-		int hi = late_merge[i].hi ;
+		int lo = late_merge[i].lo;
+		int hi = late_merge[i].hi;
 
-		int got_lo = 0 ;
-		int got_hi = 0 ;
+		int got_lo = 0;
+		int got_hi = 0;
 
-		for(int j=0;j<chain_cou;j++) {
-
+		for(int j = 0; j < chain_cou; j++) {
 			for(int k=0;k<chain[j].cou;k++) {
-				if(chain[j].ix[k] == lo) got_lo = j + 1 ;
+				if(chain[j].ix[k] == lo) got_lo = j + 1;
 				if(chain[j].ix[k] == hi) got_hi = j + 1;
 			}
-
-			if(got_hi || got_lo) break ;
+			if(got_hi || got_lo) break;
 		}
 
-		if(got_hi && got_lo) continue ;
+		if(got_hi && got_lo) continue;
 
 		if(got_hi) {
-			chain[got_hi-1].ix[chain[got_hi-1].cou] = lo ;
-			chain[got_hi-1].cou++ ;
+			chain[got_hi-1].ix[chain[got_hi-1].cou] = lo;
+			chain[got_hi-1].cou++;
 
 			if(chain[got_hi-1].cou >= MAX_CHAIN_IX) {
-				do_debug = 1 ;
-				LOG(WARN,"Too many hi") ;
-				goto start_chain ;
+				do_debug = 1;
+				LOG(WARN,"Too many hi");
+				goto start_chain;
 			}
-
 		}
 		else if(got_lo) {
-			chain[got_lo-1].ix[chain[got_lo-1].cou] = hi ;
-			chain[got_lo-1].cou++ ;
+			chain[got_lo-1].ix[chain[got_lo-1].cou] = hi;
+			chain[got_lo-1].cou++;
 
 			if(chain[got_lo-1].cou >= MAX_CHAIN_IX) {
-				do_debug = 1 ;
-				LOG(WARN,"Too many lo") ;
-				goto start_chain ;
+				do_debug = 1;
+				LOG(WARN,"Too many lo");
+				goto start_chain;
 			}
-
-
 		}
 		else {
 			if(chain_cou >= MAX_CHAIN_COU) {
-				LOG(WARN,"Too many chains") ;
-				goto start_chain ;
+				LOG(WARN,"Too many chains");
+				goto start_chain;
 			}
 			else {
-				chain[chain_cou].ix[0] = lo ;
-				chain[chain_cou].ix[1] = hi ;
-				chain[chain_cou].cou = 2 ;
-				chain_cou++ ;
+				chain[chain_cou].ix[0] = lo;
+				chain[chain_cou].ix[1] = hi;
+				chain[chain_cou].cou = 2;
+				chain_cou++;
 			}
 		}
 	}
 
 	start_chain: ;
 
-	// find the chain leader: probably unnecessary, can use the 1st one...
-	for(int i=0;i<chain_cou;i++) {
-		short min = 0x7FFF ;
-		for(int j=0;j<chain[i].cou;j++) {
+//	find the chain leader: probably unnecessary, can use the 1st one...
+	for(int i = 0; i < chain_cou; i++) {
+		short min = 0x7FFF;
+		for(int j = 0; j < chain[i].cou; j++) {
 			if(chain[i].ix[j] < min) {	
 				min = chain[i].ix[j];
 			}
-			chain[i].leader = min ;
+			chain[i].leader = min;
 		}
 	}
 
-	#ifdef DO_DBG3
+#ifdef DO_DBG3
 	for(int i=0;i<chain_cou;i++) {
-		printf("chain %d: ",i) ;
+		printf("chain %d: ",i);
 		for(int j=0;j<chain[i].cou;j++) {
-			printf("%2d ",chain[i].ix[j]) ;
+			printf("%2d ",chain[i].ix[j]);
 		}
-		printf("\n") ;
+		printf("\n");
 	}
-	#endif
-
+#endif
 	if(blob_ix >= MAX_BLOB_COUNT) {
-		LOG(WARN,"Too many blobs %d/%d",blob_ix,MAX_BLOB_COUNT) ;
-		do_debug = 1 ;
-		blob_ix = MAX_BLOB_COUNT - 1 ;	// cut it off by hand!
+		LOG(WARN,"Too many blobs %d/%d",blob_ix,MAX_BLOB_COUNT);
+		do_debug = 1;
+		blob_ix = MAX_BLOB_COUNT - 1; // cut it off by hand!
 	}
 
-	LOG(DBG,"Doing 2") ;
-	int gprof3 = PROFILER(gprof2) ;
+	LOG(DBG,"Doing 2");
+	int gprof3 = PROFILER(gprof2);
 
-	for(int pad=1;pad<=tpx_rowlen[row];pad++) {
-		register short *b = p_row_pad[row][pad] ;
+	for(int pad = 1; pad <= tpx_rowlen[row]; pad++) {
+		register short *b = p_row_pad[row][pad];
 
-		if(b==0) continue ;	// pad missing?
+		if(b == 0) continue ; // pad missing?
 
 #ifdef CHECK_SANITY
 		if(rdo) {
-			int rr, aa, cc ;
-			tpx_to_altro(row,pad,rr,aa,cc) ;
+			int rr, aa, cc;
+			tpx_to_altro(row,pad,rr,aa,cc);
 			if(rr != rdo) {
-				LOG(ERR,"Huh?") ;
+				LOG(ERR,"Huh?");
 				continue ;
 			}
 		}
 #endif
 		short flags = get_static(row,pad)->f & 0x0FFF ;
 		flags &= ~FCF_ONEPAD ;	// need to fix the default ala tpxFCF...
-		if(rdo==0) flags &= ~FCF_BROKEN_EDGE ;
+		if(rdo == 0) flags &= ~FCF_BROKEN_EDGE ;
 
-		register short cou ;
+		register short cou;
 
 		while((cou = *b)) {
-//			int prof4 = PROFILER(0) ;
+//			int prof4 = PROFILER(0);
 
-			short *bs = b ;	
+			short *bs = b;
+			short ix = bs[1]; // get the index out
 
-			short ix = bs[1] ;	// get the index out
-
-			b += cou + 3 ;		// advance pointer to next sequence
-		
+			b += cou + 3; // advance pointer to next sequence
 #ifdef DO_SIMULATION
 			b += cou ;
 #endif
-			// check for late merge via chains
-			for(int l=0;l<chain_cou;l++) {
-				for(int k=0;k<chain[l].cou;k++) {
+//			 check for late merge via chains
+			for(int l = 0; l < chain_cou; l++) {
+				for(int k = 0; k < chain[l].cou; k++) {
 					if(ix == chain[l].ix[k]) {
-
-						#ifdef DO_DBG3
-						printf(" pad %3d, tb_hi %3d: chain merge of %d into %d\n",pad,bs[2],ix,chain[l].leader) ;
-						#endif
-						ix = chain[l].leader ;
-						goto chain_done ;
+#ifdef DO_DBG3
+						printf(" pad %3d, tb_hi %3d: chain merge of %d into %d\n",pad,bs[2],ix,chain[l].leader);
+#endif
+						ix = chain[l].leader;
+						goto chain_done;
 					}
 				}
 			}
@@ -689,42 +659,40 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			if((ix < 0) || (ix > blob_ix)){
 				LOG(WARN,"Too many ix: r:p %d:%d: ix %d/%d",
 				    row,pad,ix,blob_ix) ;
-				#ifdef DO_DBG
+#ifdef DO_DBG
 				printf("***** WARN Too many ix: r:p %d:%d: ix %d/%d\n",
-				    row,pad,ix,blob_ix) ;
-
-				#endif
+				    row,pad,ix,blob_ix);
+#endif
 				continue ;
 			}
 
-			blob_t *bl = blobs + ix ;
+			blob_t *bl = blobs + ix;
 
-			short seq_cou = bl->cou ;
+			short seq_cou = bl->cou;
 
 			if(seq_cou >= MAX_SEQ_PER_BLOB) {	
 				LOG(WARN,"Too many seqs: r:p %d:%d: ix %d: seq_cou %d/%d",row,pad,ix,seq_cou,MAX_SEQ_PER_BLOB) ;
 
-				#ifdef DO_DBG
+#ifdef DO_DBG
 				printf("***** WARN Too many seqs: r:p %d:%d: ix %d: %d/%d\n",
 				    row,pad,ix,seq_cou,MAX_SEQ_PER_BLOB) ;
-
-				#endif
-				continue ;
+#endif
+				continue;
 			}
 
-			if(seq_cou ==0) {
-				bl->flags = flags ;
+			if(seq_cou == 0) {
+				bl->flags = flags;
 			}
 			else {
-				bl->flags |= flags ;
+				bl->flags |= flags;
 			}
 
-			bl->cou++ ;
+			bl->cou++;
 
-			blob_seq_t *seq = bl->seq + seq_cou ;
+			blob_seq_t *seq = bl->seq + seq_cou;
 
-			seq->s = bs ;
-			seq->pad = pad ;
+			seq->s = bs;
+			seq->pad = pad;
 
 //			PROFILER(prof4) ;
 		}
@@ -735,12 +703,12 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 	int gprof4 = PROFILER(gprof3) ;
 
 	// ************************ loop over all the blobs
-	for(int ix=0;ix<blob_ix;ix++) {
+	for(int ix = 0; ix < blob_ix; ix++) {
 		#ifdef DO_DBG3
 		printf("===> BLOB %2d: row %d, %d pads, flags 0x%X\n",ix,row,blobs[ix].cou,blobs[ix].flags) ;
 		#endif
 
-		if(blobs[ix].cou == 0) continue ;	// can only be from a late merge
+		if(blobs[ix].cou == 0) continue; // can only be from a late merge
 
 		short flags = blobs[ix].flags ;
 
