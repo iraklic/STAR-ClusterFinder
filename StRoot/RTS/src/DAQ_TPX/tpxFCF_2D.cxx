@@ -258,6 +258,10 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 
 	int gprof0 = PROFILER(0) ;
 
+	
+	for(row = 1; row <= 45; row++)
+			printf("IRAKLI : %d : %d", row, tpx_rowlen[row]);
+
 //	--------- LOOP OVER PAD ROWS --------------------------------------
 	for(row = 1; row <= 45; row++) { // need row count here!!!
 		int do_debug = 0 ;
@@ -1092,8 +1096,7 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 		PROFILER(gprof1) ;	// start of row
 
 		if(do_debug) do_print(row) ;
-
-		}	// end of all rows
+	} // ------------ END OF LOOP OVER PAD ROWS -----------------------
 
 	PROFILER(gprof0) ;	// start of RDO
 
