@@ -14,8 +14,7 @@
 
 
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	rtsLogOutput(RTS_LOG_STDERR) ;
 //	rtsLogLevel(NOTE) ;
 
@@ -74,7 +73,7 @@ int main(int argc, char *argv[])
 	dd = dr->det("tpx")->get("adc") ;	// get the ADC data
 	if(dd == 0) {
 		LOG(WARN,"No adc data in this event...") ;
-		continue ;			// not there, skip...
+		continue; // not there, skip...
 	}
 
 
@@ -111,7 +110,10 @@ int main(int argc, char *argv[])
 	if(dd == 0) continue ;	// error
 
 	// dump the newly found data out...
+	int maxEvents = 0;
 	while(dd->iterate()) {
+		if (maxEvents > 44) return 0;
+		maxEvents++;
 		//printf("sec %2d, row %3d: %d clusters\n",dd->sec,dd->row,dd->ncontent) ;
 
 		for(u_int i=0;i<dd->ncontent;i++) {
