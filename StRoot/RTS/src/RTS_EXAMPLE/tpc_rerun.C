@@ -27,8 +27,10 @@ int main(int argc, char *argv[]) {
 
 	tpx->InitRun(123) ;			// initialize the run with some dummy run number...
 
-
+	int numEvents = 0;
 	while(dr->get(0,0)) {			// zip through the input files...
+	if (numEvents > 0) return 0;
+	numEvents++;
 
 
 	int got_adc_data = 0 ;
@@ -110,10 +112,7 @@ int main(int argc, char *argv[]) {
 	if(dd == 0) continue ;	// error
 
 	// dump the newly found data out...
-	int maxEvents = 0;
 	while(dd->iterate()) {
-		if (maxEvents > 44) return 0;
-		maxEvents++;
 		//printf("sec %2d, row %3d: %d clusters\n",dd->sec,dd->row,dd->ncontent) ;
 
 		for(u_int i=0;i<dd->ncontent;i++) {
