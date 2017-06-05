@@ -18,9 +18,8 @@
 	#endif
 
 #else
-	#define DO_SIMULATION
+//	#define DO_SIMULATION // commented out because sometimes even if it is not RALTIME it is not SIMULATION either
 #endif
-
 
 class tpxFCF_2D : public tpxFCF
 {

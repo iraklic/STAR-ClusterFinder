@@ -28,9 +28,14 @@
 
 
 #define DTA(i,j) (dta + (dt_2)*(i) + (j))
+
+#ifdef DO_SIMULATION
 #define DTA_T(i,j) (dta_t + (dt_2)*(i) + (j))
-#define DTA_S(i,j) (dta_s + (dt_2)*(i) + (j))
 #define DTA_ID(i,j) (dta_id + (dt_2)*(i) + (j))
+#endif
+
+#define DTA_S(i,j) (dta_s + (dt_2)*(i) + (j))
+
 
 // =============================================================================================
 static inline u_int get10(u_int *l, u_int p)
@@ -38,8 +43,6 @@ static inline u_int get10(u_int *l, u_int p)
 	u_int ret ;
 
 	l -= 2*(p/4) ;
-
-	printf("I am here\n"); // IRAKLI
 
 	switch(p&3)
 		{
@@ -251,16 +254,14 @@ int tpxFCF_2D::do_print(int row)
 // =============================================================================================
 int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 	{
-	printf("I am here : 1\n"); // IRAKLI
-
 	u_int *locbuff = buff ;
 	u_int *startbuff = buff ;
 
 	int gprof0 = PROFILER(0) ;
 
 	
-	for(row = 1; row <= 45; row++)
-			printf("IRAKLI : %d : %d", row, tpx_rowlen[row]);
+//	for(row = 1; row <= 45; row++)
+//			printf("IRAKLI : %d : %d", row, tpx_rowlen[row]);
 
 //	--------- LOOP OVER PAD ROWS --------------------------------------
 	for(row = 1; row <= 45; row++) { // need row count here!!!
@@ -1172,6 +1173,7 @@ int tpxFCF_2D::do_peaks(int peaks_cou) {
 // =============================================================================================
 void tpxFCF_2D::do_track_id(int peaks_cou)
 {
+#ifdef DO_SIMULATION
 	short dt, dt_2 ;
 	short dp ;
 
@@ -1265,5 +1267,6 @@ void tpxFCF_2D::do_track_id(int peaks_cou)
 			LOG(ERR,"What??? %d %d %d",max_cou,track_adc,blob_adc) ;
 		}
 	}
+#endif
 }
 // =============================================================================================
