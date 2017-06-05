@@ -16,6 +16,7 @@ class tpx_FXF
 809 - 828					for(1:dt)
 838 - 880				for(1:dp)
 809 - 879					for(1:dt)
+1061				do_peaks(peaks_cou)
  
 // ================================================
 1338 - 1454	tpx_FCF::do_peaks; 
