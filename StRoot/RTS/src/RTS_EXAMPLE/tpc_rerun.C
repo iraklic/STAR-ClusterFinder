@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		
 #endif
 
-//#define DO_CLD
+#define DO_CLD
 #ifdef DO_CLD
 	dd = dr->det("tpx")->get("adc") ;	// get the ADC data
 	if(dd == 0) {
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
 	// OK, now we have the ADC data ready for re-clusterfinding so let's do it
 
 
-	dd = dr->det("tpx")->get("cld_sim") ;	// this will rerun the cluster finder on the "adc_sim" data
+	dd = dr->det("tpx")->get("cld_2d_sim") ;	// this will rerun the cluster finder on the "adc_sim" data
 	if(dd == 0) continue ;	// error
 
 	// dump the newly found data out...
