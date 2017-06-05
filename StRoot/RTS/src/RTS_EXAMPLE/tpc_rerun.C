@@ -12,9 +12,12 @@
 #include <DAQ_READER/daq_dta.h>
 #include <DAQ_TPX/daq_tpx.h>
 
-
+#include "Kokkos_Core.hpp"
 
 int main(int argc, char *argv[]) {
+
+	Kokkos::initialize(argc, argv);
+
 	rtsLogOutput(RTS_LOG_STDERR) ;
 //	rtsLogLevel(NOTE) ;
 
@@ -163,5 +166,6 @@ int main(int argc, char *argv[]) {
 
 	}	// end of ebent
 
+	Kokkos::finalize();
 	return 0 ;
 	}

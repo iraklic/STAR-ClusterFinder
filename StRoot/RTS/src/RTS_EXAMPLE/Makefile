@@ -1,3 +1,7 @@
+default: all
+
+USE_64BITS=1
+
 -include ../rtsmakefile.def	# for RTS
 -include ../rtsplus.def
 
@@ -29,8 +33,8 @@ testMessaging: testMessaging.o $(VOBJS)
 rts_example: rts_example.o $(VOBJS)
 	$(LINK.o) -o $@ $(LDLIBS) -Wl,--whole-archive $^ -Wl,--no-whole-archive
 
-tpc_rerun: tpc_rerun.o $(VOBJS)
-	$(LINK.o) -o $@ $(LDLIBS) -Wl,--whole-archive $^ -Wl,--no-whole-archive
+tpc_rerun: tpc_rerun.o $(VOBJS) $(KOKKOS_LINK_DEPENDS) 
+	$(LINK.o) -o $@ $(LDLIBS) -Wl,--whole-archive $^ -Wl,--no-whole-archive -ldl -lpthread
 
 tpx_read_gains: tpx_read_gains.o $(VOBJS)
 	$(LINK.o) -o $@ $(LDLIBS) -Wl,--whole-archive $^ -Wl,--no-whole-archive
