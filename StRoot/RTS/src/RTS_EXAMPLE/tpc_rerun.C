@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	int got_adc_data = 0 ;
 	daq_dta *dd, *sim_dta ;
 
-#define DUMP_CLD_IN_FILE
+//#define DUMP_CLD_IN_FILE
 #ifdef DUMP_CLD_IN_FILE
 	// if you care, you can dump the in-file clusters here
 	dd = dr->det("tpx")->get("cld") ;
