@@ -11,6 +11,7 @@ int main(int argc, char* argv[]) {
 
     collector_data<Kokkos::HostSpace> collector;
     collector.read_file(filename);    
+    if(N>0)
     for(int sector = 0; sector<collector.num_sectors; sector++) 
     for(int row = 0; row<collector.num_rows; row++) 
     for(int pad = 0; pad<collector.num_pads(row); pad++) {
@@ -30,6 +31,12 @@ int main(int argc, char* argv[]) {
       printf("\n");
     }
 
+    collector_data<Kokkos::DefaultExecutionSpace::memory_space> data(collector.num_sectors,collector.num_rows,
+                                                                     collector.max_num_pads,collector.total_num_signals,
+                                                                     collector.signal_values.extent(0));
+  
+    printf("DeepCopy\n");  
+    deep_copy(data,collector);
   }
   Kokkos::finalize();
 }
