@@ -288,13 +288,15 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 
 		short blob_ix = 0 ;
 
-		short b1_cou, t1_lo, t1_hi ;
-		short b2_cou, t2_lo, t2_hi ;
+		short b1_cntr, t1_lo, t1_hi ;
+		short b2_cntr, t2_lo, t2_hi ;
 
 		short *ix1, *ix2 ;
 
+                //n_row_p, val_row_p0, val_row_p1, ... val_row_p_[n_row_p-1] n_row_p+1 ....
 		for(int p = 1; p < tpx_rowlen[row]; p++) { // the < is on purpose!
-			short *b1 = p_row_pad[row][p];
+			short *b1 = p_row_pad[row][p]; // p_row_pad[nrows,rowlength[i0],counter[i0,i1],2]
+                        int b1_idx = 0;
 
 			if(b1 == 0) continue; // pad missing?
 #ifdef CHECK_SANITY
@@ -311,20 +313,27 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				continue;
 			}
 #endif
-			for(;;) {
-				b1_cou = *b1++; // count of adcs
+                        while(b1[b1_idx]!=0) {
+			//for(;;) {
+				b1_cntr = b1[b1_idx]; // count of adcs
+                                b1_idx++;
+  
+				//if(b1_cntr == 0) break;
 
-				if(b1_cou == 0) break;
+                                int ix1_idx = b1_idx;
+                                b1_idx++;
+				t1_hi = b1[b1_idx];
+                                b1_idx++; // tb_hi;
+				t1_lo = t1_hi - b1_cntr + 1;
 
-				ix1 = b1++;
-				t1_hi = *b1++; // tb_hi;
-				t1_lo = t1_hi - b1_cou + 1;
-
-				b1 += b1_cou; // advance to next...
+                                b1_idx+=b1_cntr;
+				//b1 += b1_cntr; // advance to next...
 #ifdef DO_SIMULATION
-				b1 += b1_cou; // to skip the track_ids as well
+                                b1_idx+=b1_cntr;
+				//b1 += b1_cntr; // to skip the track_ids as well
 #endif
 				short *b2 = p_row_pad[row][p+1];
+                                int b2_idx = 0;
 
 				if(b2 == 0) {	// no second pad?
 					goto sweep_unmerged;
@@ -342,18 +351,22 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 					goto sweep_unmerged;
 				}
 #endif
-				for(;;) {
-					b2_cou = *b2++;
+                                while(b2[b2_idx]!=0) {
+				//for(;;) {
+					b2_cntr = b2[b2_idx];
+                                        b2_idx++;
 
-					if(b2_cou == 0) break;
+					//if(b2_cntr == 0) break;
 
-					ix2 = b2++;
-					t2_hi = *b2++;
-					t2_lo = t2_hi - b2_cou + 1;
+                                        int ix2_idx = b2_idx;
+                                        b2_idx++;
+					t2_hi = b2[b2_idx];
+                                        b2_idx++;
+					t2_lo = t2_hi - b2_cntr + 1;
 
-					b2 += b2_cou;
+					b2_idx += b2_cntr;
 #ifdef DO_SIMULATION
-					b2 += b2_cou;	// to skip the track ids
+					b2_idx += b2_cntr;	// to skip the track ids
 #endif
 					int merge;
 
@@ -362,32 +375,32 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 					else merge = 1;
 
 					if(merge) {
-						if(*ix1 >= 0) {
-							if(*ix2 >= 0) {
-								if(*ix1 != *ix2) {
+						if(b1[ix1_idx] >= 0) {
+							if(b2[ix2_idx] >= 0) {
+								if(b1[ix1_idx] != b2[ix2_idx]) {
 //								printf("Late merge: r:p %d:%d, merges %d, ix1 %d, ix2 %d\n",row,p,late_merge_cou,*ix1,*ix2);
 									if(late_merge_cou >= MAX_LATE_MERGE) {
 										LOG(WARN,"Too many late merges %d/%d: rp %d:%d",late_merge_cou,MAX_LATE_MERGE,row,p);
 										do_debug = 1;
 									}
 									else {
-										late_merge[late_merge_cou].lo = *ix1;
-										late_merge[late_merge_cou].hi = *ix2;
+										late_merge[late_merge_cou].lo = b1[ix1_idx];
+										late_merge[late_merge_cou].hi = b2[ix2_idx];
 										late_merge_cou++;
 									}
 								}
 							}
 							else {
-								*ix2 = *ix1;
+								b2[ix2_idx] = b1[ix1_idx];
 							}
 						}
 						else {
-							if(*ix2 >= 0) {
-								*ix1 = *ix2;
+							if(b2[ix2_idx] >= 0) {
+								b1[ix1_idx] = b2[ix2_idx];
 							}
 							else {
-								*ix1 = blob_ix;
-								*ix2 = blob_ix;
+								b1[ix1_idx] = blob_ix;
+								b2[ix2_idx] = blob_ix;
 								blobs[blob_ix].cou = 0;
 								blob_ix++;
 							}
@@ -398,8 +411,8 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 				sweep_unmerged: ;
 
 //				sweep unmerged sequences
-				if(*ix1 < 0) { // unassigned
-					*ix1 = blob_ix;
+				if(b1[ix1_idx] < 0) { // unassigned
+					b1[ix1_idx] = blob_ix;
 					blobs[blob_ix].cou = 0;
 					blob_ix++ ;
 				}
@@ -410,8 +423,8 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 //		PROBLEM for row 8!
 		int p = tpx_rowlen[row];
 		short *b1 = p_row_pad[row][p];
-
-		if(b1) {
+                int b1_idx = 0;
+		if(b1!=NULL) {
 			int rr = rdo;
 #ifdef CHECK_SANITY
 			if(rdo) {
@@ -424,24 +437,25 @@ int tpxFCF_2D::stage_2d(u_int *buff, int max_bytes)
 			};
 #endif
 			if(rr == rdo) {
-				short b1_cou;
-				short *ix1;
+				short b1_cntr;
+				int ix1_idx;
 
-				for(;;) {
-					b1_cou = *b1++; // count of adcs
+				while(b1[b1_idx]!=0) {
+					b1_cntr = b1[b1_idx]; // count of adcs
+                                        b1_idx++;
 
-					if(b1_cou == 0) break;
 
-					ix1 = b1++;
+					int ix1_idx = b1_idx;
+                                        b1_idx++;
 
-					if(*ix1 < 0) {
-						*ix1 = blob_ix;
+					if(b1[ix1_idx] < 0) {
+						b1[ix1_idx] = blob_ix;
 						blobs[blob_ix].cou = 0;
 						blob_ix++;
 					}
-					b1 += b1_cou + 1;
+					b1_idx += b1_cntr + 1;
 #ifdef DO_SIMULATION
-					b1 += b1_cou;
+					b1_idx += b1_cntr;
 #endif
 				}
 			}
