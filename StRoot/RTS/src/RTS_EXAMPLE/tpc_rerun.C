@@ -32,7 +32,10 @@ int main(int argc, char *argv[]) {
 
 	int numEvents = 0;
 	while(dr->get(0,0)) {			// zip through the input files...
-	if (numEvents > 0) return 0;
+	if (numEvents > 100) {
+          Kokkos::finalize();
+          return 0;
+        }
 	numEvents++;
 
 
