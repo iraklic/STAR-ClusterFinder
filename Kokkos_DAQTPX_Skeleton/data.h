@@ -28,14 +28,15 @@ struct collector_data {
     num_sectors = 24;
     num_rows = 45;
     max_num_pads = 182;
-    num_pads = Kokkos::View<int32_t*>("collector_data::num_pads",num_rows+1);
-    pad_signal_offsets = Kokkos::View<int32_t***>("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
+    num_pads = Kokkos::View<int32_t*, MemorySpace>("collector_data::num_pads",num_rows+1);
+    pad_signal_offsets = Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace>("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
   
     init_num_pads();     
   }
   
   void read_file(char* filename) {
-    Kokkos::View<int32_t***> pad_signal_count = Kokkos::View<int32_t***>("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
+    Kokkos::View<int32_t***> pad_signal_count = Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace>
+                   ("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
     FILE* input = fopen(filename,"r");
     int num_lines = 36245;
     // Figure out number of signals per pad
