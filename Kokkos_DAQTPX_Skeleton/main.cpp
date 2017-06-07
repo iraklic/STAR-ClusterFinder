@@ -96,6 +96,10 @@ int main(int argc, char* argv[]) {
         int first_row_signal = data.pad_signal_offsets(iSector,iRow,0);
         int last_row_signal = data.pad_signal_offsets(iSector,iRow,data.num_pads(iRow));
         for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
+          if (iSignal == 1494) {
+            printf(">>> %d", iSignal);
+          }
+          
           if (data.blob_id(iSignal) == iSignal) {
             int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(), 1);
             data.blob_id(iSignal) = -(last_blob_counts + 1);
@@ -103,6 +107,10 @@ int main(int argc, char* argv[]) {
         }
 
         for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
+          if (iSignal == 1494) {
+            printf("+++ %d", iSignal);
+          }
+
           if (data.blob_id(iSignal) >= 0) {
             int blob_head_id = data.blob_id(iSignal);
             data.blob_id(iSignal) = data.blob_id(blob_head_id);
