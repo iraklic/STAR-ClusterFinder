@@ -37,8 +37,8 @@ int main(int argc, char* argv[]) {
   
     printf("DeepCopy\n");  
     deep_copy(data,collector);
-    Kokkos::deep_copy(data.forward_link, -1);
-    Kokkos::deep_copy(data.backward_link, -1);
+    // Kokkos::deep_copy(data.forward_link, -1);
+    // Kokkos::deep_copy(data.backward_link, -1);
     Kokkos::parallel_for(data.total_num_signals, KOKKOS_LAMBDA(const int i){
         data.blob_id(i) = i;
       });
