@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
             int blob_head_id = data.blob_id(iSignal);
             data.blob_id(iSignal) = data.blob_id(blob_head_id);
           }
-          Kokkos::atomic_inc(&blob_size(-data.blob_id(iSignal)));
+          Kokkos::atomic_increment(&blob_size(-data.blob_id(iSignal)));
         }
         
       }   // row loop end
