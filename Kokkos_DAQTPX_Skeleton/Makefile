@@ -1,7 +1,7 @@
 #Global Settings
-KOKKOS_PATH = ${HOME}/kokkos
-KOKKOS_DEVICES = "OpenMP"
-KOKKOS_ARCH = "Power8,Kepler37"
+KOKKOS_PATH = /Users/kehw/tmp/kokkos-master
+KOKKOS_DEVICES = "Pthreads"
+KOKKOS_ARCH = ""
 EXE_NAME = "test"
 
 

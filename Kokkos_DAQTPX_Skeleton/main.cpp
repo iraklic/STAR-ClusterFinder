@@ -42,18 +42,18 @@ int main(int argc, char* argv[]) {
     Kokkos::parallel_for(data.total_num_signals, KOKKOS_LAMBDA(const int i){
         data.blob_id(i) = i;
       });
-    Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> blob_size("blob_size", data.num_sectors*data.num_rows*300);
+    Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_size("blob_size", data.num_sectors*data.num_rows*300);
 
     int blob_counts = 0;
     
-    for (int iSector = 0; iSector < data.num_sectors; i++) {
+    for (int iSector = 0; iSector < data.num_sectors; iSector++) {
       for (int iRow = 0; iRow < data.num_rows; iRow++) {
         bool not_done = true;
         while (not_done) {
           not_done = false;
           for (int iIter = 0; iIter < 2; iIter++)
             for (int iPad = iIter; iPad < data.num_pads(iRow)-1; iPad += 2) {
-              const int num_signals = data.pad_signal_offsets(iSector,iRow,pad+1)-data.pad_signal_offsets(iSector,iRow,pad);
+              const int num_signals = data.pad_signal_offsets(iSector,iRow,iPad+1)-data.pad_signal_offsets(iSector,iRow,iPad);
               const int first_signal = data.pad_signal_offsets(iSector,iRow,iPad);
 
               int first_nb_signal = data.pad_signal_offsets(iSector,iRow,iPad+1);
@@ -108,11 +108,12 @@ int main(int argc, char* argv[]) {
         
       }   // row loop end
     }     // sector loop end
-  }
 
-  for (int iBlob = 1; iBlob <= blob_counts; iBlob++) {
-    printf("Blob: %i, size: %i\n", iBlob, blob_size(iBlob));
-  }
+    for (int iBlob = 1; iBlob <= blob_counts; iBlob++) {
+      printf("Blob: %i, size: %i\n", iBlob, blob_size(iBlob));
+    }
   
+  } // init
+
   Kokkos::finalize();
 }
