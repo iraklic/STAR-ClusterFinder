@@ -18,8 +18,6 @@ struct collector_data {
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_flag;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_time;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_values;
-  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> forward_link;
-  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> backward_link;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> blob_id;
   
   int num_sectors;
@@ -49,6 +47,7 @@ struct collector_data {
     signal_time = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_time",total_num_signals);
     signal_flag = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_flag",total_num_signals);
     signal_values = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_values",num_entries);
+    blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
   }
  
   void read_file(char* filename) {
@@ -90,6 +89,7 @@ struct collector_data {
     signal_offsets = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_offsets",total_num_signals+1);
     signal_time = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_time",total_num_signals);
     signal_flag = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_flag",total_num_signals);
+    blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
 
 
     Kokkos::deep_copy(pad_signal_count,0);
@@ -212,5 +212,5 @@ void deep_copy(collector_data<MemorySpace1>& d1, collector_data<MemorySpace2>& d
   Kokkos::deep_copy(d1.signal_flag,d2.signal_flag);
   Kokkos::deep_copy(d1.signal_offsets,d2.signal_offsets);
   Kokkos::deep_copy(d1.signal_time,d2.signal_time);
-  
+  Kokkos::deep_copy(d1.blob_id,d2.blob_id);
 }
