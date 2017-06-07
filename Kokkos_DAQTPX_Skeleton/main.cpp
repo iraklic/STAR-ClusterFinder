@@ -113,22 +113,21 @@ int main(int argc, char* argv[]) {
       }   // row loop end
       });   // sector loop end
     
-    int global_offset = 0;
     Kokkos::parallel_scan("comp_global_offset", blob_counts(), KOKKOS_LAMBDA(const int& iBlob, int& global_offset, bool final){
-        if (final ) blob_offset(iBlob) = global_offset;
         global_offset += blob_size(iBlob); 
+        if (final) blob_offset(iBlob) = global_offset;
       });
-
-    Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_signal_map("blob_signal_map", global_offset);
+    
+    Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_signal_map("blob_signal_map", data.total_num_signals);
     Kokkos::deep_copy(blob_size, 0);
     Kokkos::parallel_for("comp_blob_size", data.total_num_signals, KOKKOS_LAMBDA(const int& iSignal){
       int id = -data.blob_id(iSignal);
-      int myOffset = Kokkos::atomic_fetch_add(&blob_size(id), 1) + blob_offset(id);
+      int myOffset = Kokkos::atomic_fetch_add(&blob_size(id), 1) + blob_offset(id-1);
       blob_signal_map(myOffset) = iSignal;
       });
 
-    Kokkos::parallel_for("comp_cluster", blob_counts(), KOKKOS_LAMBDA(const int& iBlob){
-        int my_blob_offset = blob_offset(iBlob);
+    Kokkos::parallel_for("comp_cluster", Kokkos::RangePolicy<>(1, blob_counts()), KOKKOS_LAMBDA(const int& iBlob){
+        int my_blob_offset = blob_offset(iBlob-1);
         float cluster_tb = 0, cluster_pad = 0, cluster_ADC = 0;
         for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
           int iSignal = blob_signal_map(i);
