@@ -18,7 +18,10 @@ struct collector_data {
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_flag;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_time;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_values;
-
+  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> forward_link;
+  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> backward_link;
+  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> blob_id;
+  
   int num_sectors;
   int num_rows;
   int max_num_pads;
