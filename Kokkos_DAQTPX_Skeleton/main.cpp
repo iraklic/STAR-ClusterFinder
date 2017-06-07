@@ -46,10 +46,12 @@ int main(int argc, char* argv[]) {
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_offset("blob_offset", data.num_sectors*data.num_rows*300);
 
     int blob_counts = 0;
-    
-    for (int iSector = 0; iSector < data.num_sectors; iSector++) {
-      for (int iRow = 0; iRow < data.num_rows; iRow++) {
-	if (iSector != 1 || iRow != 1) continue;
+
+    Kokkos::TeamPolicy<> policy(data.num_sectors, Kokkos::AUTO);
+    Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
+        int iSector = t.league_rank();
+        for (int iRow = 0; iRow < data.num_rows; iRow++) {
+	// if (iSector != 1 || iRow != 1) continue;
         bool not_done = true;
         while (not_done) {
           not_done = false;
@@ -109,42 +111,42 @@ int main(int argc, char* argv[]) {
         }
         
       }   // row loop end
-    }     // sector loop end
-
+      });   // sector loop end
+    
     int global_offset = 0;
-    for (int iBlob = 1; iBlob <= blob_counts; iBlob++) {
+    Kokkos::parallel_for("comp_global_offset", blob_counts, KOKKOS_LAMBDA(const int& iBlob){
       blob_offset(iBlob) = global_offset;
       global_offset += blob_size(iBlob); 
-    }
+      });
 
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_signal_map("blob_signal_map", global_offset);
     Kokkos::deep_copy(blob_size, 0);
-    for (int iSignal = 0; iSignal < data.total_num_signals; iSignal++) {
+    Kokkos::parallel_for("comp_blob_size", data.total_num_signals, KOKKOS_LAMBDA(const int& iSignal){
       int id = -data.blob_id(iSignal);
       int myOffset = blob_size(id) + blob_offset(id);
       blob_signal_map(myOffset) = iSignal;
       blob_size(id)++;
-    }
+      });
 
-    for (int iBlob = 1; iBlob <= blob_counts; iBlob++) {
-      int my_blob_offset = blob_offset(iBlob);
-      float cluster_tb = 0, cluster_pad = 0, cluster_ADC = 0;
-      for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
-        int iSignal = blob_signal_map(i);
-        int Signal_trailing_tb = data.signal_time(iSignal);
-        int Signal_pad = data.signal_pad(iSignal);
-        for (int iADC = data.signal_offsets(iSignal+1); iADC > data.signal_offsets(iSignal); iADC--) {
-          cluster_tb += Signal_trailing_tb * data.signal_values(iADC);
-          cluster_pad += Signal_pad * data.signal_values(iADC);
-          cluster_ADC += data.signal_values(iADC);
-          Signal_trailing_tb--;
+    Kokkos::parallel_for("comp_cluster", blob_counts, KOKKOS_LAMBDA(const int& iBlob){
+        int my_blob_offset = blob_offset(iBlob);
+        float cluster_tb = 0, cluster_pad = 0, cluster_ADC = 0;
+        for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
+          int iSignal = blob_signal_map(i);
+          int Signal_trailing_tb = data.signal_time(iSignal);
+          int Signal_pad = data.signal_pad(iSignal);
+          for (int iADC = data.signal_offsets(iSignal+1); iADC > data.signal_offsets(iSignal); iADC--) {
+            cluster_tb += Signal_trailing_tb * data.signal_values(iADC);
+            cluster_pad += Signal_pad * data.signal_values(iADC);
+            cluster_ADC += data.signal_values(iADC);
+            Signal_trailing_tb--;
+          }
         }
-      }
-      cluster_tb /= cluster_ADC;
-      cluster_pad /= cluster_ADC;
+        cluster_tb /= cluster_ADC;
+        cluster_pad /= cluster_ADC;
 
-      printf("Blob: %i, size: %i, cluster_tb %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad);
-    }
+        printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
+      });
     
     } // init
 
