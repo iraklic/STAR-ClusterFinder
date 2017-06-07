@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
     
     for (int iSector = 0; iSector < data.num_sectors; iSector++) {
       for (int iRow = 0; iRow < data.num_rows; iRow++) {
-
+	if (iSector != 1 || iRow != 1) continue;
         bool not_done = true;
         while (not_done) {
           not_done = false;
