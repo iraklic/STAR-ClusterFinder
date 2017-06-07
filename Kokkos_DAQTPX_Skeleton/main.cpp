@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
 
     Kokkos::View<int32_t> blob_counts("blob_counts");
 
-    Kokkos::TeamPolicy<> policy(data.num_sectors, Kokkos::AUTO);
+    Kokkos::TeamPolicy<> policy(data.num_sectors, 1);
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
         int iSector = t.league_rank()+1;
         for (int iRow = 1; iRow <= data.num_rows; iRow++) {
@@ -112,8 +112,10 @@ int main(int argc, char* argv[]) {
         
       }   // row loop end
       });   // sector loop end
-    
-    Kokkos::parallel_scan("comp_global_offset", blob_counts(), KOKKOS_LAMBDA(const int& iBlob, int& global_offset, bool final){
+  
+    int h_bcounts;
+    Kokkos::deep_copy(h_bcounts,blob_counts); 
+    Kokkos::parallel_scan("comp_global_offset", h_bcounts, KOKKOS_LAMBDA(const int& iBlob, int& global_offset, bool final){
         global_offset += blob_size(iBlob); 
         if (final) blob_offset(iBlob) = global_offset;
       });
@@ -126,7 +128,7 @@ int main(int argc, char* argv[]) {
       blob_signal_map(myOffset) = iSignal;
       });
 
-    Kokkos::parallel_for("comp_cluster", Kokkos::RangePolicy<>(1, blob_counts()), KOKKOS_LAMBDA(const int& iBlob){
+    Kokkos::parallel_for("comp_cluster", Kokkos::RangePolicy<>(1, h_bcounts), KOKKOS_LAMBDA(const int& iBlob){
         int my_blob_offset = blob_offset(iBlob-1);
         float cluster_tb = 0, cluster_pad = 0, cluster_ADC = 0;
         for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
