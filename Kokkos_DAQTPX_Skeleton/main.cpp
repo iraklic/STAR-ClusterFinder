@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
       blob_size(id)++;
     }
 
-    for (iBlob = 1; iBlob <= blob_counts; iBlob++) {
+    for (int iBlob = 1; iBlob <= blob_counts; iBlob++) {
       int my_blob_offset = blob_offset(iBlob);
       float cluster_tb = 0, cluster_pad = 0, cluster_ADC = 0;
       for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
