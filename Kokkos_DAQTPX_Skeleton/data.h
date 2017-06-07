@@ -17,6 +17,7 @@ struct collector_data {
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_offsets;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_flag;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_time;
+  Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_pad;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> signal_values;
   Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace> blob_id;
   
@@ -45,6 +46,7 @@ struct collector_data {
     pad_signal_offsets = Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace>("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
     signal_offsets = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_offsets",total_num_signals+1);
     signal_time = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_time",total_num_signals);
+    signal_pad = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_pad",total_num_signals);
     signal_flag = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_flag",total_num_signals);
     signal_values = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_values",num_entries);
     blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
@@ -88,6 +90,7 @@ struct collector_data {
     total_num_signals = offset;
     signal_offsets = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_offsets",total_num_signals+1);
     signal_time = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_time",total_num_signals);
+    signal_pad = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_pad",total_num_signals);
     signal_flag = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_flag",total_num_signals);
     blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
 
@@ -106,6 +109,7 @@ struct collector_data {
         signal_offsets(first_signal_offset+signal_count) = signal_len;
         fscanf(input,"%i",&signal_flag(first_signal_offset+signal_count));
         fscanf(input,"%i",&signal_time(first_signal_offset+signal_count));
+        signal_pad(first_signal_offset+signal_count) = pad;
         pad_signal_count(sector,row,pad)++;
         int tmp;
         for(int s = 0; s<signal_len; s++) fscanf(input,"%i",&tmp);
@@ -212,5 +216,6 @@ void deep_copy(collector_data<MemorySpace1>& d1, collector_data<MemorySpace2>& d
   Kokkos::deep_copy(d1.signal_flag,d2.signal_flag);
   Kokkos::deep_copy(d1.signal_offsets,d2.signal_offsets);
   Kokkos::deep_copy(d1.signal_time,d2.signal_time);
+  Kokkos::deep_copy(d1.signal_pad,d2.signal_pad);
   Kokkos::deep_copy(d1.blob_id,d2.blob_id);
 }
