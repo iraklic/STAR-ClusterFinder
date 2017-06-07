@@ -51,7 +51,6 @@ int main(int argc, char* argv[]) {
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
         int iSector = t.league_rank()+1;
         for (int iRow = 1; iRow <= data.num_rows; iRow++) {
-          // printf("processing sec: %d, row %d", iSector, iRow);
           // if (iSector != 1 || iRow != 1) continue;
         bool not_done = true;
         while (not_done) {

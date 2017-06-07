@@ -22,7 +22,7 @@ CXX = g++
 EXE = ${EXE_NAME}.host
 endif
 
-CXXFLAGS = -O0 -g
+CXXFLAGS = -O3 -g
 
 LINK = ${CXX}
 LINKFLAGS = -O3
