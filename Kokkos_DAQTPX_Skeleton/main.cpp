@@ -54,6 +54,7 @@ int main(int argc, char* argv[]) {
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
         int iSector = t.league_rank()+1;
         for (int iRow = 1; iRow <= data.num_rows; iRow++) {
+          printf("processing sec: %d, row %d", iSector, iRow);
           // if (iSector != 1 || iRow != 1) continue;
         bool not_done = true;
         while (not_done) {
@@ -99,10 +100,6 @@ int main(int argc, char* argv[]) {
         int first_row_signal = data.pad_signal_offsets(iSector,iRow,0);
         int last_row_signal = data.pad_signal_offsets(iSector,iRow,data.num_pads(iRow));
         for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
-          if (iSignal >= 1494) {
-            printf(">>> %d", iSignal);
-          }
-          
           if (data.blob_id(iSignal) == iSignal) {
             int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(), 1);
             data.blob_id(iSignal) = -(last_blob_counts + 1);
@@ -110,10 +107,6 @@ int main(int argc, char* argv[]) {
         }
 
         for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
-          if (iSignal >= 1494) {
-            printf("+++ %d", iSignal);
-          }
-
           if (data.blob_id(iSignal) >= 0) {
             int blob_head_id = data.blob_id(iSignal);
             data.blob_id(iSignal) = data.blob_id(blob_head_id);
