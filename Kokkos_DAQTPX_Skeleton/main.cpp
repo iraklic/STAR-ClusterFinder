@@ -132,9 +132,10 @@ int main(int argc, char* argv[]) {
       for (int i = my_blob_offset; i < my_blob_offset+blob_size(iBlob); i++) {
         int iSignal = blob_signal_map(i);
         int Signal_trailing_tb = data.signal_time(iSignal);
+        int Signal_pad = data.signal_pad(iSignal);
         for (int iADC = data.signal_offsets(iSignal+1); iADC > data.signal_offsets(iSignal); iADC--) {
           cluster_tb += Signal_trailing_tb * data.signal_values(iADC);
-          cluster_pad += data.signal_pad(iADC) * data.signal_values(iADC);
+          cluster_pad += Signal_pad * data.signal_values(iADC);
           cluster_ADC += data.signal_values(iADC);
           Signal_trailing_tb--;
         }
