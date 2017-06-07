@@ -41,9 +41,6 @@ int main(int argc, char* argv[]) {
     // Kokkos::deep_copy(data.backward_link, -1);
     Kokkos::parallel_for(data.total_num_signals, KOKKOS_LAMBDA(const int i){
         data.blob_id(i) = i;
-        if (i == 1494) {
-          printf("signal_pad: %d", data.signal_pad(i));
-        }
       });
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_size("blob_size", data.num_sectors*data.num_rows*300);
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_offset("blob_offset", data.num_sectors*data.num_rows*300);
@@ -54,7 +51,7 @@ int main(int argc, char* argv[]) {
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
         int iSector = t.league_rank()+1;
         for (int iRow = 1; iRow <= data.num_rows; iRow++) {
-          printf("processing sec: %d, row %d", iSector, iRow);
+          // printf("processing sec: %d, row %d", iSector, iRow);
           // if (iSector != 1 || iRow != 1) continue;
         bool not_done = true;
         while (not_done) {
