@@ -8,6 +8,8 @@ int main(int argc, char* argv[]) {
       printf("Error: expect at least: 'FILENAME N_entries' as arguments\n");
     char * filename = argv[1];
     int N = atoi(argv[2]);
+    int team_size = atoi(argv[3]);
+    int vec_len = atoi(argv[4]);
 
     Kokkos::Profiling::pushRegion("init");
     collector_data<Kokkos::HostSpace> collector;
@@ -53,7 +55,7 @@ int main(int argc, char* argv[]) {
     Kokkos::View<int32_t**, Kokkos::LayoutRight> blob_offset("blob_offset", N, events(0).num_sectors*events(0).num_rows*300);
     Kokkos::View<int32_t*> blob_counts("blob_counts", N);
 
-    Kokkos::TeamPolicy<> policy(24*N, 16, 32);
+    Kokkos::TeamPolicy<> policy(24*N, team_size, vec_len);
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
 	int iEvent  = t.league_rank()/24;
 	t_gpu_collector_data data = events(iEvent);
