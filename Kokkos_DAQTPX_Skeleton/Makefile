@@ -1,7 +1,7 @@
 #Global Settings
-KOKKOS_PATH = /gpfshome01/u/kehw/kokkos_version/kokkos
+KOKKOS_PATH = $(HOME)/Kokkos/kokkos
 KOKKOS_DEVICES = "Cuda"
-KOKKOS_ARCH = "Kepler37,SNB"
+KOKKOS_ARCH = "Pascal60,Power8"
 EXE_NAME = "test"
 
 

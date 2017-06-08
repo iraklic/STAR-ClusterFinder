@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
     Kokkos::Profiling::pushRegion("init");
     collector_data<Kokkos::HostSpace> collector;
     collector.read_file(filename);    
-    if(N>0)
+    /*if(N>0)
       for(int sector = 0; sector<collector.num_sectors; sector++) 
         for(int row = 0; row<collector.num_rows; row++) 
           for(int pad = 0; pad<collector.num_pads(row); pad++) {
@@ -31,29 +31,34 @@ int main(int argc, char* argv[]) {
             }
             printf("\n");
           }
-
-    collector_data<Kokkos::DefaultExecutionSpace::memory_space> data(collector.num_sectors,collector.num_rows,
-                                                                     collector.max_num_pads,collector.total_num_signals,
-                                                                     collector.signal_values.extent(0));
+    */
+    typedef collector_data<Kokkos::DefaultExecutionSpace::memory_space> t_gpu_collector_data;
+    Kokkos::View<t_gpu_collector_data*, Kokkos::CudaHostPinnedSpace> events("all_events", N);
+    for (int i = 0; i < N; ++i) {
+	events(i) = t_gpu_collector_data(collector.num_sectors,collector.num_rows,
+                                         collector.max_num_pads,collector.total_num_signals,
+                			 collector.signal_values.extent(0));
+	deep_copy(events(i), collector);
+    }
     Kokkos::Profiling::popRegion();
 
-    
-    printf("DeepCopy\n");  
-    deep_copy(data,collector);
+    for (int e = 0; e < N; ++e) {
+	t_gpu_collector_data data = events(e);
+    	Kokkos::parallel_for("init_blob_id", data.total_num_signals, KOKKOS_LAMBDA(const int i){
+        	data.blob_id(i) = i;
+    	  });	
+    }
 
-    Kokkos::parallel_for("init_blob_id", data.total_num_signals, KOKKOS_LAMBDA(const int i){
-        data.blob_id(i) = i;
-      });
+    Kokkos::View<int32_t**, Kokkos::LayoutRight> blob_size("blob_size", N, events(0).num_sectors*events(0).num_rows*300);
+    Kokkos::View<int32_t**, Kokkos::LayoutRight> blob_offset("blob_offset", N, events(0).num_sectors*events(0).num_rows*300);
+    Kokkos::View<int32_t*> blob_counts("blob_counts", N);
 
-    Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_size("blob_size", data.num_sectors*data.num_rows*300);
-    Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_offset("blob_offset", data.num_sectors*data.num_rows*300);
-
-    Kokkos::View<int32_t> blob_counts("blob_counts");
-
-    Kokkos::TeamPolicy<> policy(data.num_sectors, 16, 32);
+    Kokkos::TeamPolicy<> policy(24*N, 16, 32);
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
-        int iSector = t.league_rank()+1;
-	
+	int iEvent  = t.league_rank()/24;
+	t_gpu_collector_data data = events(iEvent);
+
+        int iSector = t.league_rank()%24+1;
 	Kokkos::parallel_for(Kokkos::TeamThreadRange(t, 1, data.num_rows+1), [&](const int& iRow) {
 	    // if (iSector != 1 || iRow != 1) continue;
 	    int not_done = 1;
@@ -102,7 +107,7 @@ int main(int argc, char* argv[]) {
 	    Kokkos::parallel_for(Kokkos::ThreadVectorRange(t, last_row_signal-first_row_signal), [&](const int iSignal_iter) {
 		int iSignal = iSignal_iter + first_row_signal;
 		if (data.blob_id(iSignal) == iSignal) {
-		  int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(), 1);
+		  int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(iEvent), 1);
 		  data.blob_id(iSignal) = -(last_blob_counts + 1);
 		}
 	      });
@@ -113,12 +118,13 @@ int main(int argc, char* argv[]) {
 		  int blob_head_id = data.blob_id(iSignal);
 		  data.blob_id(iSignal) = data.blob_id(blob_head_id);
 		}
-		Kokkos::atomic_increment(&blob_size(-data.blob_id(iSignal)));
+		Kokkos::atomic_increment(&blob_size(iEvent, -data.blob_id(iSignal)));
 	      });
         
 	  });   // row loop end
       });   // sector loop end
   
+    /*
     int h_bcounts;
     Kokkos::deep_copy(h_bcounts,blob_counts); 
     Kokkos::parallel_scan("comp_global_offset", h_bcounts, KOKKOS_LAMBDA(const int& iBlob, int& global_offset, bool final){
@@ -155,7 +161,7 @@ int main(int argc, char* argv[]) {
 
         // printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
       });
-    
+    */
   } // init
 
   Kokkos::finalize();
