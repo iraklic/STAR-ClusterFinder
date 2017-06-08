@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
     char * filename = argv[1];
     int N = atoi(argv[2]);
 
+    Kokkos::Profiling::pushRegion("init");
     collector_data<Kokkos::HostSpace> collector;
     collector.read_file(filename);    
     if(N>0)
@@ -34,83 +35,88 @@ int main(int argc, char* argv[]) {
     collector_data<Kokkos::DefaultExecutionSpace::memory_space> data(collector.num_sectors,collector.num_rows,
                                                                      collector.max_num_pads,collector.total_num_signals,
                                                                      collector.signal_values.extent(0));
-  
+    Kokkos::Profiling::popRegion();
+
+    
     printf("DeepCopy\n");  
     deep_copy(data,collector);
-    // Kokkos::deep_copy(data.forward_link, -1);
-    // Kokkos::deep_copy(data.backward_link, -1);
-    Kokkos::parallel_for(data.total_num_signals, KOKKOS_LAMBDA(const int i){
+
+    Kokkos::parallel_for("init_blob_id", data.total_num_signals, KOKKOS_LAMBDA(const int i){
         data.blob_id(i) = i;
       });
+
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_size("blob_size", data.num_sectors*data.num_rows*300);
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_offset("blob_offset", data.num_sectors*data.num_rows*300);
 
     Kokkos::View<int32_t> blob_counts("blob_counts");
 
-    Kokkos::TeamPolicy<> policy(data.num_sectors, 1);
+    Kokkos::TeamPolicy<> policy(data.num_sectors, 16, 32);
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
         int iSector = t.league_rank()+1;
-        for (int iRow = 1; iRow <= data.num_rows; iRow++) {
-          // if (iSector != 1 || iRow != 1) continue;
-        bool not_done = true;
-        while (not_done) {
-          not_done = false;
-          for (int iIter = 0; iIter < 2; iIter++)
-            for (int iPad = iIter; iPad < data.num_pads(iRow)-1; iPad += 2) {
-              const int num_signals = data.pad_signal_offsets(iSector,iRow,iPad+1)-data.pad_signal_offsets(iSector,iRow,iPad);
-              const int first_signal = data.pad_signal_offsets(iSector,iRow,iPad);
+	
+	Kokkos::parallel_for(Kokkos::TeamThreadRange(t, 1, data.num_rows+1), [&](const int& iRow) {
+	    // if (iSector != 1 || iRow != 1) continue;
+	    int not_done = 1;
+	    while (not_done) {
+	      not_done = 0;
+	      for (int iIter = 0; iIter < 2; iIter++) {
+		Kokkos::parallel_reduce(Kokkos::ThreadVectorRange(t, data.num_pads(iRow)/2), [=](const int& iPad2, int& thead_not_done) {
+		    const int iPad = iPad2*2 + iIter;
+		    const int num_signals = data.pad_signal_offsets(iSector,iRow,iPad+1)-data.pad_signal_offsets(iSector,iRow,iPad);
+		    const int first_signal = data.pad_signal_offsets(iSector,iRow,iPad);
 
-              int first_nb_signal = data.pad_signal_offsets(iSector,iRow,iPad+1);
-              const int last_nb_signal = data.pad_signal_offsets(iSector,iRow,iPad+2);
+		    int first_nb_signal = data.pad_signal_offsets(iSector,iRow,iPad+1);
+		    const int last_nb_signal = data.pad_signal_offsets(iSector,iRow,iPad+2);
           
-              for (int iSignal = first_signal; iSignal < first_signal+num_signals; iSignal++) {
-                const int signal_time_high = data.signal_time(iSignal);
-                const int signal_length = data.signal_offsets(iSignal+1) - data.signal_offsets(iSignal);
-                const int signal_time_low  = signal_time_high - signal_length + 1;
+		    for (int iSignal = first_signal; iSignal < first_signal+num_signals; iSignal++) {
+		      const int signal_time_high = data.signal_time(iSignal);
+		      const int signal_length = data.signal_offsets(iSignal+1) - data.signal_offsets(iSignal);
+		      const int signal_time_low  = signal_time_high - signal_length + 1;
             
-                for (int iSignal_nb = first_nb_signal; iSignal_nb < last_nb_signal; iSignal_nb++) {
-                  const int signal_nb_time_high = data.signal_time(iSignal_nb);
-                  const int signal_nb_length = data.signal_offsets(iSignal_nb+1) - data.signal_offsets(iSignal_nb);
-                  const int signal_nb_time_low  = signal_nb_time_high - signal_nb_length + 1;
+		      for (int iSignal_nb = first_nb_signal; iSignal_nb < last_nb_signal; iSignal_nb++) {
+			const int signal_nb_time_high = data.signal_time(iSignal_nb);
+			const int signal_nb_length = data.signal_offsets(iSignal_nb+1) - data.signal_offsets(iSignal_nb);
+			const int signal_nb_time_low  = signal_nb_time_high - signal_nb_length + 1;
 
-                  if (signal_nb_time_high >= signal_time_low &&
-                      signal_nb_time_low <= signal_time_high) {
-                    // data.forward_link(iSignal) = iSignal_nb;
-                    // data.backward_link(iSignal_nb) = iSignal;
+			if (signal_nb_time_high >= signal_time_low &&
+			    signal_nb_time_low <= signal_time_high) {
 
-                    if (data.blob_id(iSignal) != data.blob_id(iSignal_nb)) {
-                      not_done = true;
-                    }
+			  if (data.blob_id(iSignal) != data.blob_id(iSignal_nb)) {
+			    thead_not_done = 1;
+			  }
 
-                    if (data.blob_id(iSignal) < data.blob_id(iSignal_nb)) {
-                      data.blob_id(iSignal_nb) = data.blob_id(iSignal);
-                    } else {
-                      data.blob_id(iSignal) = data.blob_id(iSignal_nb);
-                    }
-                  }
-                } // iSignal_nb loop end
-              }   // iSignal loop end
-            } // pad loop end
-        } // while done end
+			  if (data.blob_id(iSignal) < data.blob_id(iSignal_nb)) {
+			    data.blob_id(iSignal_nb) = data.blob_id(iSignal);
+			  } else {
+			    data.blob_id(iSignal) = data.blob_id(iSignal_nb);
+			  }
+			}
+		      } // iSignal_nb loop end
+		    }   // iSignal loop end
+		  }, not_done); // pad loop end
+	      }	// Iter loop end
+	    } // while done end
 
-        int first_row_signal = data.pad_signal_offsets(iSector,iRow,0);
-        int last_row_signal = data.pad_signal_offsets(iSector,iRow,data.num_pads(iRow));
-        for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
-          if (data.blob_id(iSignal) == iSignal) {
-            int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(), 1);
-            data.blob_id(iSignal) = -(last_blob_counts + 1);
-          }
-        }
+	    int first_row_signal = data.pad_signal_offsets(iSector,iRow,0);
+	    int last_row_signal = data.pad_signal_offsets(iSector,iRow,data.num_pads(iRow));
+	    Kokkos::parallel_for(Kokkos::ThreadVectorRange(t, last_row_signal-first_row_signal), [&](const int iSignal_iter) {
+		int iSignal = iSignal_iter + first_row_signal;
+		if (data.blob_id(iSignal) == iSignal) {
+		  int last_blob_counts = Kokkos::atomic_fetch_add(&blob_counts(), 1);
+		  data.blob_id(iSignal) = -(last_blob_counts + 1);
+		}
+	      });
 
-        for (int iSignal = first_row_signal; iSignal < last_row_signal; iSignal++) {
-          if (data.blob_id(iSignal) >= 0) {
-            int blob_head_id = data.blob_id(iSignal);
-            data.blob_id(iSignal) = data.blob_id(blob_head_id);
-          }
-          Kokkos::atomic_increment(&blob_size(-data.blob_id(iSignal)));
-        }
+	    Kokkos::parallel_for(Kokkos::ThreadVectorRange(t, last_row_signal-first_row_signal), [&](const int iSignal_iter) {
+		int iSignal = iSignal_iter + first_row_signal;
+		if (data.blob_id(iSignal) >= 0) {
+		  int blob_head_id = data.blob_id(iSignal);
+		  data.blob_id(iSignal) = data.blob_id(blob_head_id);
+		}
+		Kokkos::atomic_increment(&blob_size(-data.blob_id(iSignal)));
+	      });
         
-      }   // row loop end
+	  });   // row loop end
       });   // sector loop end
   
     int h_bcounts;
@@ -123,10 +129,12 @@ int main(int argc, char* argv[]) {
     Kokkos::View<int32_t*, Kokkos::LayoutLeft> blob_signal_map("blob_signal_map", data.total_num_signals);
     Kokkos::deep_copy(blob_size, 0);
     Kokkos::parallel_for("comp_blob_size", data.total_num_signals, KOKKOS_LAMBDA(const int& iSignal){
-      int id = -data.blob_id(iSignal);
-      int myOffset = Kokkos::atomic_fetch_add(&blob_size(id), 1) + blob_offset(id-1);
-      blob_signal_map(myOffset) = iSignal;
+	int id = -data.blob_id(iSignal);
+	int myOffset = Kokkos::atomic_fetch_add(&blob_size(id), 1) + blob_offset(id-1);
+	blob_signal_map(myOffset) = iSignal;
       });
+
+    Kokkos::View<int32_t*[2], Kokkos::LayoutLeft> clusters("clusters", h_bcounts);
 
     Kokkos::parallel_for("comp_cluster", Kokkos::RangePolicy<>(1, h_bcounts), KOKKOS_LAMBDA(const int& iBlob){
         int my_blob_offset = blob_offset(iBlob-1);
@@ -142,13 +150,13 @@ int main(int argc, char* argv[]) {
             Signal_trailing_tb--;
           }
         }
-        cluster_tb /= cluster_ADC;
-        cluster_pad /= cluster_ADC;
+        clusters(iBlob, 0) = cluster_tb / cluster_ADC;
+        clusters(iBlob, 1) = cluster_pad / cluster_ADC;
 
-        printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
+        // printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
       });
     
-    } // init
+  } // init
 
-    Kokkos::finalize();
-  }
+  Kokkos::finalize();
+}

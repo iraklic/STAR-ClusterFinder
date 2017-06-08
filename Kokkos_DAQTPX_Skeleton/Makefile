@@ -1,7 +1,7 @@
 #Global Settings
-KOKKOS_PATH = /Users/kehw/tmp/kokkos-master
-KOKKOS_DEVICES = "Pthreads"
-KOKKOS_ARCH = ""
+KOKKOS_PATH = /gpfshome01/u/kehw/kokkos_version/kokkos
+KOKKOS_DEVICES = "Cuda"
+KOKKOS_ARCH = "Kepler37,SNB"
 EXE_NAME = "test"
 
 
