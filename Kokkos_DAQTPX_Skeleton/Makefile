@@ -44,5 +44,5 @@ clean: kokkos-clean
 
 # Compilation rules
 
-%.o:%.cpp $(KOKKOS_CPP_DEPENDS)
+%.o:%.cpp $(KOKKOS_CPP_DEPENDS) data.h
 	$(CXX) $(KOKKOS_CPPFLAGS) $(KOKKOS_CXXFLAGS) $(CXXFLAGS) $(EXTRA_INC) -c $<

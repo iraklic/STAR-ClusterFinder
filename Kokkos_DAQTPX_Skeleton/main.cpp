@@ -35,7 +35,13 @@ int main(int argc, char* argv[]) {
       }
     */
     typedef collector_data<Kokkos::DefaultExecutionSpace::memory_space> t_gpu_collector_data;
+
+#ifdef KOKKOS_ENABLE_CUDA
     Kokkos::View<t_gpu_collector_data*, Kokkos::CudaHostPinnedSpace> events("all_events", N);
+#else 
+    Kokkos::View<t_gpu_collector_data*, Kokkos::HostSpace> events("all_events", N);
+#endif
+
     for (int i = 0; i < N; ++i) {
       events(i) = t_gpu_collector_data(collector.num_sectors,collector.num_rows,
                                        collector.max_num_pads,collector.total_num_signals,
@@ -43,6 +49,8 @@ int main(int argc, char* argv[]) {
       deep_copy(events(i), collector);
     }
     Kokkos::Profiling::popRegion();
+
+    Kokkos::Profiling::pushRegion("real_work");
 
     for (int e = 0; e < N; ++e) {
       t_gpu_collector_data data = events(e);
@@ -54,8 +62,9 @@ int main(int argc, char* argv[]) {
     Kokkos::View<int32_t**, Kokkos::LayoutRight> blob_size("blob_size", N, events(0).num_sectors*events(0).num_rows*300);
     Kokkos::View<int32_t**, Kokkos::LayoutRight> blob_offset("blob_offset", N, events(0).num_sectors*events(0).num_rows*300);
     Kokkos::View<int32_t*> blob_counts("blob_counts", N);
+    Kokkos::View<int32_t*>::HostMirror h_blob_counts = Kokkos::create_mirror_view(blob_counts);
 
-    Kokkos::TeamPolicy<> policy(24*N, team_size, vec_len);
+    Kokkos::TeamPolicy<Kokkos::Schedule<Kokkos::Dynamic>> policy(24*N, team_size, vec_len);
     Kokkos::parallel_for ("sector loop", policy, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t) {
 	int iEvent  = t.league_rank()/24;
 	t_gpu_collector_data data = events(iEvent);
@@ -126,31 +135,40 @@ int main(int argc, char* argv[]) {
 	  });   // row loop end
       });   // sector loop end
   
-    for (int iEvent = 0; iEvent < N, ++iEvent) {
-      int h_bcounts;
-      Kokkos::deep_copy(h_bcounts, Kokkos::subview(blob_counts, iEvent));
-      events(i).alloc_blob_data(h_bcounts);
+    Kokkos::Profiling::pushRegion("blob_preparation");
+    Kokkos::deep_copy(h_blob_counts, blob_counts);
+    for (int iEvent = 0; iEvent < N; ++iEvent) {
+      int h_bcounts = h_blob_counts(iEvent);
 
+      Kokkos::Profiling::pushRegion("alloc_blob_data");
+      events(iEvent).alloc_blob_data(h_bcounts);
+      Kokkos::Profiling::popRegion(); 
+  
       Kokkos::parallel_scan("comp_global_offset", h_bcounts, KOKKOS_LAMBDA(const int& iBlob, int& global_offset, bool final){
           global_offset += blob_size(iEvent, iBlob); 
           if (final) blob_offset(iEvent, iBlob) = global_offset;
         });
     }
 
-    Kokkos::TeamPolicy<> policy2(N, Kokkos::AUTO);
+    Kokkos::Profiling::popRegion();
+
+    Kokkos::TeamPolicy<Kokkos::Schedule<Kokkos::Dynamic>> policy2(N, Kokkos::AUTO);
     Kokkos::parallel_for("do_peaks", policy2, KOKKOS_LAMBDA(const Kokkos::TeamPolicy<>::member_type& t){
         int iEvent = t.league_rank();
         t_gpu_collector_data data = events(iEvent);
 
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(t, blob_counts(iEvent)), [&](const int& i) {
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(t, 0, blob_counts(iEvent)+1), [&](const int& i) {
             blob_size(iEvent, i) = 0;
           });
-        
+       
+        t.team_barrier(); 
         Kokkos::parallel_for(Kokkos::TeamThreadRange(t, data.total_num_signals), [&](const int& iSignal){
             int id = -data.blob_id(iSignal);
-            int myOffset = Kokkos::atomic_fetch_add(&blob_size(id), 1) + blob_offset(id-1);
-            data.blob_signal_map(myOffset) = iSignal;
+            int myOffset = Kokkos::atomic_fetch_add(&blob_size(iEvent, id), 1);
+            int myblob_offset = blob_offset(iEvent, id-1);
+            data.blob_signal_map(myOffset+myblob_offset) = iSignal;
           });
+        t.team_barrier(); 
 
         Kokkos::parallel_for(Kokkos::TeamThreadRange(t, 1, blob_counts(iEvent)), [&](const int& iBlob){
             int my_blob_offset = blob_offset(iEvent, iBlob-1);
@@ -171,7 +189,15 @@ int main(int argc, char* argv[]) {
             // printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
           });
       }); // done peaks
+
+  Kokkos::Profiling::popRegion();
+ 
+  for (int iEvent = 0; iEvent < N; ++iEvent) {
+	events(iEvent).free_mem();
+  }
+
   } // init
+
 
   Kokkos::finalize();
 }

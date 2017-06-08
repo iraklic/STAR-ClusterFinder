@@ -49,13 +49,27 @@ struct collector_data {
     signal_flag = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_flag",total_num_signals);
     signal_values = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::signal_values",num_entries);
     blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
+    blob_signal_map = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_signal_map", total_num_signals+1);
+  }
+
+  void free_mem() {
+    num_pads = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    pad_signal_offsets = Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace>();
+    signal_offsets = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    signal_time = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    signal_pad = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    signal_flag = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    signal_values = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
+    blob_signal_map = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>();
   }
 
   void alloc_blob_data(const int n_blobs) {
-    blob_signal_map = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_signal_map", n_blobs);
-    clusters = Kokkos::View<int32_t*[2], Kokkos::LayoutLeft, MemorySpace> clusters("data_collector::clusters", n_blobs);
+    // clusters = Kokkos::View<int32_t*[2], Kokkos::LayoutLeft, MemorySpace>(Kokkos::ViewAllocateWithoutInitializing("data_collector::clusters"), n_blobs);
+
+    clusters = Kokkos::View<int32_t*[2], Kokkos::LayoutLeft, MemorySpace>("data_collector::clusters", n_blobs);
   }
-  
+
   void read_file(char* filename) {
     Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace> pad_signal_count = Kokkos::View<int32_t***, Kokkos::LayoutRight, MemorySpace>
                    ("collector_data::pad_offsets",num_sectors+1,num_rows+1,max_num_pads+1+1);
@@ -100,7 +114,7 @@ struct collector_data {
     signal_pad = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_pad",total_num_signals);
     signal_flag = Kokkos::View<int32_t*,MemorySpace>("data_collector::signal_flag",total_num_signals);
     blob_id = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_id",total_num_signals);
-
+    blob_signal_map = Kokkos::View<int32_t*, Kokkos::LayoutLeft, MemorySpace>("data_collector::blob_signal_map",total_num_signals+1);
 
     Kokkos::deep_copy(pad_signal_count,0);
     // Read signal lengths, time and flag ; lengths are read into offset array doing scan later
