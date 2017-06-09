@@ -193,7 +193,7 @@ Kokkos::Timer timer;
   double time = timer.seconds();
 
 
-  printf("Time: %i %lf %lf\n",N,time,time/N);
+  printf("Events: %i Events/s: %lf Time: %lf\n",N,1.0*N/time,time);
   Kokkos::Profiling::popRegion();
  
   for (int iEvent = 0; iEvent < N; ++iEvent) {
