@@ -85,7 +85,6 @@ struct collector_data {
       fscanf(input,"%i %i %i",&sector,&row,&pad);
       int signal_len;
       fscanf(input,"%i",&signal_len);
-          if((sector == 6) && (row == 7)) printf("TEST1 %i %i %i\n",num_signals,signal_len,pad_signal_offsets(sector,row,pad));
       while(signal_len>0) {
         num_signals++;
         int tmp;

@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
     Kokkos::Profiling::popRegion();
 
     Kokkos::Profiling::pushRegion("real_work");
-
+Kokkos::Timer timer;
     for (int e = 0; e < N; ++e) {
       t_gpu_collector_data data = events(e);
       Kokkos::parallel_for("init_blob_id", data.total_num_signals, KOKKOS_LAMBDA(const int i){
@@ -189,7 +189,11 @@ int main(int argc, char* argv[]) {
             // printf("Blob: %i, size: %i, cluster_tb %f, cluster_pad %f, cluster_ADC %f\n", iBlob, blob_size(iBlob), cluster_tb, cluster_pad, cluster_ADC);
           });
       }); // done peaks
+  Kokkos::fence();
+  double time = timer.seconds();
 
+
+  printf("Time: %i %lf %lf\n",N,time,time/N);
   Kokkos::Profiling::popRegion();
  
   for (int iEvent = 0; iEvent < N; ++iEvent) {
